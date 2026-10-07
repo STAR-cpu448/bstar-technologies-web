@@ -732,10 +732,29 @@ function renderAdminQrCodes(qrCodes) {
     if (qrCode.status === 'active') {
       actions.append(makeAdminQrAction('Copy WhatsApp Confirmation', 'copy', qrCode.short_code));
     }
+    actions.append(makeAdminQrAction('Delete QR', 'delete', qrCode.short_code, 'delete'));
 
     row.append(image, code, phone, status, expiry, actions);
     list.append(row);
   });
+}
+
+async function deleteDynamicQrCode(shortCode) {
+  const qrCode = adminQrCodes.find((item) => item.short_code === shortCode);
+  if (!qrCode) throw new Error(`Dynamic QR code ${shortCode} is no longer in the current list.`);
+  if (!window.confirm(`Permanently delete QR code ${shortCode}? Its QR link will stop working.`)) return;
+
+  const client = await getStoreClient();
+  const { data, error } = await client
+    .from('dynamic_qr_codes')
+    .delete()
+    .eq('short_code', shortCode)
+    .select('short_code');
+  if (error) throw new Error(`Could not delete QR code ${shortCode}: ${error.message}`);
+  if (!data?.length) throw new Error(`QR code ${shortCode} was not deleted. Check that you are signed in as a store admin.`);
+
+  await refreshAdminData();
+  showAdminStatus(`QR code ${shortCode} deleted.`, 'success');
 }
 
 async function updateDynamicQrCode(shortCode, action) {
@@ -785,7 +804,9 @@ async function handleAdminQrAction(event) {
   if (!button || !event.currentTarget.contains(button)) return;
   button.disabled = true;
   try {
-    if (button.dataset.qrAction === 'copy') {
+    if (button.dataset.qrAction === 'delete') {
+      await deleteDynamicQrCode(button.dataset.shortCode);
+    } else if (button.dataset.qrAction === 'copy') {
       await copyQrConfirmation(button.dataset.shortCode);
     } else {
       await updateDynamicQrCode(button.dataset.shortCode, button.dataset.qrAction);
