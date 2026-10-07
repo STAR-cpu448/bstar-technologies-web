@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = __dirname;
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || 10000);
 const publicFiles = new Set(['Index.html', 'app.js', 'styles.css', 'supabase-config.js']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -78,8 +78,8 @@ const server = http.createServer((request, response) => {
   });
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`B-STAR TECHNOLOGIES is available at http://127.0.0.1:${port}`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`B-STAR TECHNOLOGIES is available on port ${port}`);
 });
 
 server.on('error', (error) => {
