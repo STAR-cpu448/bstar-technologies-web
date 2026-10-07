@@ -100,7 +100,13 @@ async function handleQrRedirect(response, code) {
     return;
   }
 
-  redirect(response, `${BASE_URL.replace(/\/+$/, '')}/#q=${code}`);
+  if (!/^\d{9,15}$/.test(whatsappNumber)) {
+    console.error('Dynamic QR redirect is unavailable: the configured WhatsApp number is invalid.');
+    sendHtml(response, 503, 'QR link temporarily unavailable', 'We could not open this QR link right now. Please contact B-STAR TECHNOLOGIES.');
+    return;
+  }
+
+  redirect(response, `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hi B-STAR, I scanned dynamic QR code ${code}.`)}`);
 }
 
 const server = http.createServer((request, response) => {

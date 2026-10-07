@@ -137,6 +137,13 @@ function dynamicQrLink(code) {
   return `${window.location.origin}/qr/${encodeURIComponent(code)}`;
 }
 
+function redirectLegacyQrHash() {
+  const match = window.location.hash.match(/^#q=([^&]*)/i);
+  if (!match) return;
+  const code = match[1].toUpperCase();
+  window.location.replace(`${window.location.origin}/qr/${encodeURIComponent(code)}`);
+}
+
 function qrImagePath(file) {
   const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
   const nameWithoutExtension = file.name.replace(/\.[^.]*$/, '');
@@ -1136,6 +1143,7 @@ function bindAdminActions() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  redirectLegacyQrHash();
   document.getElementById('current-year').textContent = String(new Date().getFullYear());
   document.getElementById('product-search').addEventListener('input', renderProducts);
   document.getElementById('open-cart').addEventListener('click', openCart);
