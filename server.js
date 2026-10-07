@@ -1,9 +1,12 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const storeConfig = require('./supabase-config.js');
 
 const root = __dirname;
 const port = Number(process.env.PORT || 10000);
+const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
 const publicFiles = new Set(['Index.html', 'app.js', 'styles.css', 'supabase-config.js']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -30,11 +33,47 @@ function redirect(response, targetUrl) {
   response.end();
 }
 
-function handleQrRedirect(response, code) {
+async function handleQrRedirect(response, code) {
   console.log(`Processing QR scan for code: ${code}`);
-  const cleanPhone = '254794940193';
-  const message = `Hello B-STAR, scanned QR ${code}`;
-  redirect(response, `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
+  if (!/^[A-Z0-9]{6}$/.test(code)) {
+    sendText(response, 404, 'QR code not found');
+    return;
+  }
+
+  try {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase URL or anon key is not configured.');
+    }
+
+    const lookupResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/get_dynamic_qr_code`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_short_code: code }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!lookupResponse.ok) {
+      throw new Error(`Supabase returned HTTP ${lookupResponse.status}.`);
+    }
+
+    const records = await lookupResponse.json();
+    const record = Array.isArray(records) ? records[0] : records;
+    if (!record) {
+      sendText(response, 404, 'QR code not found');
+      return;
+    }
+
+    const cleanPhone = '254794940193';
+    const message = `Hello B-STAR, scanned QR ${code}`;
+    redirect(response, `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
+  } catch (error) {
+    console.error(`Error looking up QR code ${code}:`, error);
+    if (!response.writableEnded && !response.destroyed) {
+      sendText(response, 503, 'QR link temporarily unavailable. Please try again later.');
+    }
+  }
 }
 
 const server = http.createServer((request, response) => {
@@ -55,7 +94,7 @@ const server = http.createServer((request, response) => {
 
   const qrMatch = pathname.match(/^\/(?:qr|r)\/([^/]+)\/?$/i);
   if (qrMatch) {
-    handleQrRedirect(response, qrMatch[1].trim().toUpperCase());
+    void handleQrRedirect(response, qrMatch[1].trim().toUpperCase());
     return;
   }
 
