@@ -10,7 +10,7 @@ Requires Node.js 18.17 or newer.
 npm.cmd start
 ```
 
-Open <http://127.0.0.1:3000>.
+Open <http://127.0.0.1:10000>.
 
 ## Supabase setup
 
@@ -25,7 +25,7 @@ The storefront reads only active products in active categories. The cart persist
 
 ### Dynamic image QR codes
 
-After deploying this feature, run the updated [`supabase-setup.sql`](./supabase-setup.sql) in the Supabase SQL Editor. It creates the public `qr-images` bucket and `dynamic_qr_codes` table, permits bounded anonymous image uploads and pending KES 99 QR submissions, and exposes only the image, status and expiry fields through the public `get_dynamic_qr_code` RPC. The storefront QR flow stores image URLs in the `image_url` field of this separate table; product images continue to use `products.image_path`.
+After deploying this feature, run the updated [`supabase-setup.sql`](./supabase-setup.sql) in the Supabase SQL Editor. It creates the public `qr-images` bucket and `dynamic_qr_codes` table, permits bounded anonymous image uploads and pending KES 99 QR submissions, and exposes only the image, status and expiry fields through the public `get_dynamic_qr_code` RPC. The Node server checks this persistent Supabase table at `/qr/:code` before redirecting active links to their image viewer; pending or expired codes open WhatsApp, and unknown codes show an informative page. New QR URLs use the current site origin. The storefront QR flow stores image URLs in the `image_url` field of this separate table; product images continue to use `products.image_path`.
 
 Customers can create pending QR codes, but payment is not processed automatically. Verify payment through WhatsApp, then use the authenticated Store dashboard's Dynamic QR Codes tab to activate, renew or expire the code and copy an activation confirmation. For manual database activation, set the row to `active` and `expires_at` to its paid-through timestamp in the Supabase SQL Editor, for example:
 
@@ -54,4 +54,4 @@ Set `SUPABASE_SERVICE_ROLE_KEY` in a trusted local shell and run `npm run seed:a
 - `product-images` Storage bucket: public read; authenticated store-admin upload/update/delete.
 - Public visitors can read active catalog records. Admin CRUD requires the trusted `app_metadata.role = admin` claim.
 
-The included Node server only serves static assets for local development. Supabase is the data/auth/storage backend, with RLS as the authorization boundary. Deploy the static site using any HTTPS-capable static host or Node host; configure the same Supabase Auth redirect origin in the Supabase project.
+The included Node server serves the storefront and dynamic QR redirects. Supabase is the data/auth/storage backend, with RLS as the authorization boundary. Deploy as a Node web service on an HTTPS-capable host; set `BASE_URL` when the public site URL differs from `https://bstar-technologies-web.onrender.com`, and configure the same Supabase Auth redirect origin in the Supabase project. QR records persist in Supabase across server restarts and deploys.

@@ -134,7 +134,7 @@ function qrPhoneForWhatsApp(phone) {
 }
 
 function dynamicQrLink(code) {
-  return `https://bstar-technologies.onrender.com${window.location.pathname}#q=${code}`;
+  return `${window.location.origin}/qr/${encodeURIComponent(code)}`;
 }
 
 function qrImagePath(file) {
