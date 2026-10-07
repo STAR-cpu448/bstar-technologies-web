@@ -24,9 +24,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .site-shell { overflow: clip; }
 .site-header { position: sticky; z-index: 20; top: 0; padding: 14px clamp(18px, 5vw, 76px); border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(8,11,18,.74); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
 .navbar { min-height: 48px; max-width: 1440px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.ticker { width: 100%; overflow: hidden; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--accent); }
-.ticker-track { display: flex; width: max-content; animation: marquee 24s linear infinite; }
-.ticker-content { flex: 0 0 auto; margin: 0; padding: 11px 0; font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.ticker { width: 100vw; max-width: 100%; overflow: hidden; white-space: nowrap; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--accent); }
+.ticker-track { display: inline-flex; flex-shrink: 0; width: max-content; white-space: nowrap; animation: marquee 24s linear infinite; }
+.ticker-content { display: inline-block; flex-shrink: 0; padding: 11px 0; font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 .brand { display: inline-flex; align-items: center; gap: 11px; flex-shrink: 0; }
 .brand-mark { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 700 21px var(--font-display); transform: skew(-5deg); }
