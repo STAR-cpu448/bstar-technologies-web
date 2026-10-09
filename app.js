@@ -1,13 +1,16 @@
 const CART_STORAGE_KEY = 'bstar-cart-v1';
+const DYNAMIC_QR_ORDER_STORAGE_KEY = 'bstar-dynamic-qr-order-v1';
 const IMAGE_BUCKET = 'product-images';
 const QR_IMAGE_BUCKET = 'qr-images';
 const QR_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
-const QR_MONTHLY_PRICE = 99;
+const QR_APPROVAL_POLL_INTERVAL = 3500;
 const QR_WHATSAPP_NUMBER = '254742562742';
 let supabaseSdkPromise;
 let storeClient;
 let qrPreviewUrl;
 let generatedQrCode;
+let qrApprovalPollCode;
+let qrApprovalPollTimer;
 let adminQrCodes = [];
 let products = [];
 let categories = [];
@@ -57,6 +60,8 @@ async function getStoreClient() {
   storeClient = sdk.createClient(config.url, config.anonKey);
   return storeClient;
 }
+
+window.BSTAR_APP = Object.freeze({ getStoreClient });
 
 function publicImageUrl(imagePath) {
   if (!imagePath) return '';
@@ -130,11 +135,13 @@ function createQrShortCode() {
 }
 
 function qrPhoneForWhatsApp(phone) {
-  return phone.replace(/\D/g, '');
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
+  return digits;
 }
 
 function dynamicQrLink(code) {
-  return `${window.location.origin}/qr/${encodeURIComponent(code)}`;
+  return `${window.location.origin}/img-qr/${encodeURIComponent(code)}`;
 }
 
 function redirectLegacyQrHash() {
@@ -167,13 +174,113 @@ function renderGeneratedQr(code) {
   });
 }
 
-function configureQrResult(code, phone) {
+function showQrOrder(code) {
   generatedQrCode = code;
-  document.getElementById('qr-result').hidden = false;
-  const message = `Hi B-STAR, I created Dynamic QR Code ${code}. Phone: ${phone}. Attached is my KES 99 payment to activate my link.`;
-  document.getElementById('qr-pay-button').href = `https://wa.me/${QR_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  const output = document.getElementById('qr-code-output');
+  output.replaceChildren();
+  output.hidden = true;
+  document.getElementById('qr-download-button').hidden = true;
+  document.getElementById('qr-active-state').hidden = true;
+  document.getElementById('qr-pending-state').hidden = false;
+  document.getElementById('qr-success-title').textContent = `Order Submitted (Code: ${code})`;
+  const status = document.getElementById('qr-success-status');
+  status.textContent = 'Awaiting Admin Activation (KES 99)';
+  status.dataset.state = '';
+  document.querySelector('#qr-pending-state .qr-pending-loader').hidden = false;
+  document.getElementById('qr-approval-message').textContent = 'Checking payment approval…';
+  document.getElementById('qr-approval-message').dataset.state = '';
+  document.getElementById('qr-success-code').textContent = '';
+  const linkElement = document.getElementById('qr-success-link');
+  linkElement.removeAttribute('href');
+  linkElement.textContent = '';
+  document.getElementById('qr-success-dialog').showModal();
+}
+
+function showActivatedQr(code) {
+  generatedQrCode = code;
   renderGeneratedQr(code);
-  document.getElementById('qr-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const link = dynamicQrLink(code);
+  const title = document.getElementById('qr-success-title');
+  title.textContent = 'Your QR code is ready!';
+  document.getElementById('qr-success-status').textContent = 'Payment approved · Active for 30 days';
+  document.getElementById('qr-success-status').dataset.state = 'active';
+  document.getElementById('qr-success-code').textContent = code;
+  const linkElement = document.getElementById('qr-success-link');
+  linkElement.href = link;
+  linkElement.textContent = link;
+  const output = document.getElementById('qr-code-output');
+  output.hidden = false;
+  document.getElementById('qr-pending-state').hidden = true;
+  const activeState = document.getElementById('qr-active-state');
+  activeState.hidden = false;
+  activeState.classList.remove('is-revealed');
+  void activeState.offsetWidth;
+  activeState.classList.add('is-revealed');
+  document.getElementById('qr-download-button').hidden = false;
+  const dialog = document.getElementById('qr-success-dialog');
+  if (!dialog.open) dialog.showModal();
+}
+
+function stopQrApprovalPolling() {
+  if (qrApprovalPollTimer) window.clearTimeout(qrApprovalPollTimer);
+  qrApprovalPollTimer = undefined;
+  qrApprovalPollCode = undefined;
+}
+
+async function checkQrApproval(code) {
+  if (qrApprovalPollCode !== code) return;
+  try {
+    const client = await getStoreClient();
+    const { data, error } = await client.rpc('get_dynamic_image_qr', { p_code: code });
+    if (error) throw new Error(`Could not check QR approval: ${error.message}`);
+    const record = Array.isArray(data) ? data[0] : data;
+    if (!record) {
+      throw new Error('The submitted QR order could not be found. Contact B-STAR for help.');
+    }
+
+    const expiresAt = Date.parse(record.expires_at || '');
+    if (record.status === 'active' && Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+      showActivatedQr(code);
+      stopQrApprovalPolling();
+      return;
+    }
+    if (record.status === 'expired') {
+      document.getElementById('qr-approval-message').textContent = 'This QR order has expired. Contact B-STAR for assistance.';
+      document.getElementById('qr-approval-message').dataset.state = 'error';
+      document.getElementById('qr-pending-state').querySelector('.qr-pending-loader').hidden = true;
+      stopQrApprovalPolling();
+      return;
+    }
+    document.getElementById('qr-approval-message').textContent = 'Checking payment approval…';
+    document.getElementById('qr-approval-message').dataset.state = '';
+  } catch (error) {
+    console.error('Dynamic QR approval check failed:', error);
+    const message = document.getElementById('qr-approval-message');
+    message.textContent = `${error.message} Retrying…`;
+    message.dataset.state = 'error';
+  }
+  if (qrApprovalPollCode === code) {
+    qrApprovalPollTimer = window.setTimeout(() => checkQrApproval(code), QR_APPROVAL_POLL_INTERVAL);
+  }
+}
+
+function startQrApprovalPolling(code) {
+  if (qrApprovalPollTimer) window.clearTimeout(qrApprovalPollTimer);
+  qrApprovalPollCode = code;
+  void checkQrApproval(code);
+}
+
+function restoreDynamicQrOrder() {
+  let code;
+  try {
+    code = localStorage.getItem(DYNAMIC_QR_ORDER_STORAGE_KEY);
+  } catch (error) {
+    console.error('Could not restore dynamic QR order code:', error);
+    return;
+  }
+  if (!code || !/^IMG-[A-Z0-9]{6}$/.test(code)) return;
+  showQrOrder(code);
+  startQrApprovalPolling(code);
 }
 
 async function createDynamicQr(event) {
@@ -181,14 +288,20 @@ async function createDynamicQr(event) {
   const form = event.currentTarget;
   const file = selectedQrImage();
   const phone = form.elements.phone.value.trim();
-  const digits = qrPhoneForWhatsApp(phone);
+  const cleanPhone = qrPhoneForWhatsApp(phone);
+  const mpesaCode = form.elements.mpesaCode.value.trim().toUpperCase();
   if (!file) {
     if (!form.elements.image.files.length) setQrStatus('Choose an image to continue.', 'error');
     return;
   }
-  if (!/^\+?[0-9][0-9 ()-]{6,18}[0-9]$/.test(phone) || digits.length < 9 || digits.length > 15) {
+  if (!/^\+?[0-9][0-9 ()-]{6,18}[0-9]$/.test(phone) || cleanPhone.length < 9 || cleanPhone.length > 15) {
     setQrStatus('Enter a valid customer phone number.', 'error');
     form.elements.phone.focus();
+    return;
+  }
+  if (!/^[A-Z0-9]{8,20}$/.test(mpesaCode)) {
+    setQrStatus('Enter a valid M-Pesa confirmation code (8–20 letters or numbers).', 'error');
+    form.elements.mpesaCode.focus();
     return;
   }
   if (typeof window.QRCode !== 'function') {
@@ -198,7 +311,6 @@ async function createDynamicQr(event) {
 
   const submit = document.getElementById('qr-generate-button');
   submit.disabled = true;
-  document.getElementById('qr-result').hidden = true;
   let uploadedPath;
   let recordCreated = false;
   try {
@@ -215,29 +327,39 @@ async function createDynamicQr(event) {
     const { data: publicUrlData } = client.storage.from(QR_IMAGE_BUCKET).getPublicUrl(uploadedPath);
     if (!publicUrlData?.publicUrl) throw new Error('Could not create a public URL for the uploaded image.');
 
-    setQrStatus('Creating your dynamic QR link…', '');
-    let shortCode;
+    setQrStatus('Creating your dynamic image QR…', '');
+    let code;
     let insertError;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      shortCode = createQrShortCode();
-      const { error } = await client.from('dynamic_qr_codes').insert({
-        short_code: shortCode,
+      code = `IMG-${createQrShortCode()}`;
+      const { error } = await client.from('dynamic_image_qrs').insert({
+        code,
+        phone: cleanPhone,
         image_url: publicUrlData.publicUrl,
-        contact_phone: phone,
-        price: QR_MONTHLY_PRICE,
-        status: 'pending_payment',
+        mpesa_code: mpesaCode,
       });
       insertError = error;
       if (!error) break;
       if (error.code !== '23505') {
-        throw new Error(`Could not create your dynamic QR record: ${error.message}`);
+        throw new Error(`Could not create your dynamic image QR record: ${error.message}`);
+      }
+      if (/mpesa_code/i.test(error.message || '')) {
+        throw new Error('That M-Pesa confirmation code has already been submitted. Check the code or contact B-STAR for help.');
       }
     }
     if (insertError) throw new Error('Could not generate a unique QR code. Please try again.');
 
     recordCreated = true;
-    configureQrResult(shortCode, phone);
-    setQrStatus('Your QR code is ready. Complete payment through WhatsApp to request activation.', 'success');
+    try {
+      localStorage.setItem(DYNAMIC_QR_ORDER_STORAGE_KEY, code);
+    } catch (error) {
+      console.error('Could not persist dynamic QR order code:', error);
+    }
+    showQrOrder(code);
+    startQrApprovalPolling(code);
+    form.reset();
+    showQrImagePreview(null);
+    setQrStatus('Your image QR was submitted and is pending payment approval.', 'success');
   } catch (error) {
     console.error('Dynamic QR creation failed:', error);
     const orphanNotice = uploadedPath && !recordCreated
@@ -368,6 +490,11 @@ function bindDynamicQrActions() {
   });
   form.addEventListener('submit', createDynamicQr);
   document.getElementById('qr-download-button').addEventListener('click', downloadDynamicQr);
+  const successDialog = document.getElementById('qr-success-dialog');
+  document.getElementById('qr-success-close').addEventListener('click', () => successDialog.close());
+  successDialog.addEventListener('click', (event) => {
+    if (event.target === successDialog) successDialog.close();
+  });
   document.getElementById('qr-viewer-close').addEventListener('click', closeDynamicQrViewer);
   document.getElementById('qr-viewer').addEventListener('click', (event) => {
     if (event.target === event.currentTarget) closeDynamicQrViewer();
@@ -660,7 +787,7 @@ async function refreshAdminData() {
   const [categoryResult, productResult, qrResult] = await Promise.all([
     client.from('categories').select('id,name,slug,is_active').order('sort_order').order('name'),
     client.from('products').select('id,name,description,sku,price,stock,is_active,image_path,category_id,categories(name,is_active)').order('created_at', { ascending: false }),
-    client.from('dynamic_qr_codes').select('short_code,contact_phone,status,image_url,expires_at,created_at').order('created_at', { ascending: false }),
+    client.from('dynamic_image_qrs').select('code,phone,image_url,mpesa_code,status,expires_at,created_at').order('created_at', { ascending: false }),
   ]);
   if (categoryResult.error) throw new Error(`Unable to load admin categories: ${categoryResult.error.message}`);
   if (productResult.error) throw new Error(`Unable to load admin products: ${productResult.error.message}`);
@@ -704,7 +831,7 @@ function renderAdminQrCodes(qrCodes) {
     const row = makeElement('article', 'admin-qr-row');
     const image = makeElement('img', 'admin-qr-thumb');
     image.src = qrCode.image_url;
-    image.alt = `Image for QR code ${qrCode.short_code}`;
+    image.alt = `Image for QR code ${qrCode.code}`;
     image.loading = 'lazy';
     image.onerror = () => {
       image.removeAttribute('src');
@@ -712,54 +839,40 @@ function renderAdminQrCodes(qrCodes) {
       image.classList.add('is-unavailable');
     };
 
-    const code = makeElement('strong', 'admin-qr-code', qrCode.short_code);
-    const phone = makeElement('span', 'admin-qr-phone', qrCode.contact_phone);
+    const code = makeElement('strong', 'admin-qr-code', qrCode.code);
+    const phone = makeElement('span', 'admin-qr-phone', qrCode.phone);
+    const mpesa = makeElement('span', 'admin-qr-phone', `M-Pesa: ${qrCode.mpesa_code || 'Legacy record'}`);
     const status = makeElement('span', `admin-qr-status status-${qrCode.status}`, qrCode.status);
-    const expiry = makeElement('time', 'admin-qr-expiry', qrExpiryLabel(qrCode.expires_at));
-    if (qrCode.expires_at && !Number.isNaN(Date.parse(qrCode.expires_at))) {
-      expiry.dateTime = new Date(qrCode.expires_at).toISOString();
+    const createdAt = new Date(qrCode.created_at);
+    const date = makeElement('time', 'admin-qr-expiry', Number.isNaN(createdAt.getTime()) ? 'Date unavailable' : createdAt.toLocaleString());
+    if (!Number.isNaN(createdAt.getTime())) {
+      date.dateTime = createdAt.toISOString();
     }
+    const expiry = makeElement('span', 'admin-qr-expiry', `Expires: ${qrExpiryLabel(qrCode.expires_at)}`);
 
     const actions = makeElement('div', 'admin-qr-actions');
-    if (qrCode.status === 'pending_payment' || qrCode.status === 'expired') {
-      actions.append(makeAdminQrAction('Activate (+30 Days)', 'activate', qrCode.short_code, 'activate'));
+    if (qrCode.status !== 'active') {
+      actions.append(makeAdminQrAction('Activate (+30 Days)', 'activate', qrCode.code, 'activate'));
     } else if (qrCode.status === 'active') {
-      actions.append(makeAdminQrAction('Renew (+30 Days)', 'renew', qrCode.short_code, 'activate'));
+      actions.append(makeAdminQrAction('Renew (+30 Days)', 'renew', qrCode.code, 'activate'));
+      const notify = makeElement('a', 'admin-action', 'Notify via WhatsApp');
+      notify.href = dynamicQrWhatsAppLink(qrCode);
+      notify.target = '_blank';
+      notify.rel = 'noopener noreferrer';
+      actions.append(notify);
     }
     if (qrCode.status !== 'expired') {
-      actions.append(makeAdminQrAction('Deactivate / Expire', 'expire', qrCode.short_code, 'delete'));
+      actions.append(makeAdminQrAction('Deactivate / Expire', 'expire', qrCode.code, 'delete'));
     }
-    if (qrCode.status === 'active') {
-      actions.append(makeAdminQrAction('Copy WhatsApp Confirmation', 'copy', qrCode.short_code));
-    }
-    actions.append(makeAdminQrAction('Delete QR', 'delete', qrCode.short_code, 'delete'));
 
-    row.append(image, code, phone, status, expiry, actions);
+    row.append(image, code, phone, mpesa, status, date, expiry, actions);
     list.append(row);
   });
 }
 
-async function deleteDynamicQrCode(shortCode) {
-  const qrCode = adminQrCodes.find((item) => item.short_code === shortCode);
-  if (!qrCode) throw new Error(`Dynamic QR code ${shortCode} is no longer in the current list.`);
-  if (!window.confirm(`Permanently delete QR code ${shortCode}? Its QR link will stop working.`)) return;
-
-  const client = await getStoreClient();
-  const { data, error } = await client
-    .from('dynamic_qr_codes')
-    .delete()
-    .eq('short_code', shortCode)
-    .select('short_code');
-  if (error) throw new Error(`Could not delete QR code ${shortCode}: ${error.message}`);
-  if (!data?.length) throw new Error(`QR code ${shortCode} was not deleted. Check that you are signed in as a store admin.`);
-
-  await refreshAdminData();
-  showAdminStatus(`QR code ${shortCode} deleted.`, 'success');
-}
-
-async function updateDynamicQrCode(shortCode, action) {
-  const qrCode = adminQrCodes.find((item) => item.short_code === shortCode);
-  if (!qrCode) throw new Error(`Dynamic QR code ${shortCode} is no longer in the current list.`);
+async function updateDynamicQrCode(code, action, notificationWindow) {
+  const qrCode = adminQrCodes.find((item) => item.code === code);
+  if (!qrCode) throw new Error(`Dynamic image QR ${code} is no longer in the current list.`);
 
   const updates = {};
   if (action === 'activate') {
@@ -778,40 +891,40 @@ async function updateDynamicQrCode(shortCode, action) {
 
   const client = await getStoreClient();
   const { error } = await client
-    .from('dynamic_qr_codes')
+    .from('dynamic_image_qrs')
     .update(updates)
-    .eq('short_code', shortCode);
-  if (error) throw new Error(`Could not ${action} QR code ${shortCode}: ${error.message}`);
+    .eq('code', code);
+  if (error) throw new Error(`Could not ${action} image QR ${code}: ${error.message}`);
 
   await refreshAdminData();
-  showAdminStatus(`QR code ${shortCode} ${action === 'expire' ? 'expired' : action === 'renew' ? 'renewed' : 'activated'}.`, 'success');
+  if (action === 'activate') {
+    const whatsappUrl = dynamicQrWhatsAppLink(qrCode);
+    if (notificationWindow && !notificationWindow.closed) {
+      notificationWindow.location.href = whatsappUrl;
+    } else {
+      showAdminStatus(`Image QR ${code} activated. Use the WhatsApp notification link in the refreshed row.`, 'success');
+      return;
+    }
+  }
+  showAdminStatus(`Image QR ${code} ${action === 'expire' ? 'expired' : action === 'renew' ? 'renewed' : 'activated'}.`, 'success');
 }
 
-async function copyQrConfirmation(shortCode) {
-  const qrCode = adminQrCodes.find((item) => item.short_code === shortCode);
-  if (!qrCode) throw new Error(`Dynamic QR code ${shortCode} is no longer in the current list.`);
-  const expiry = qrExpiryLabel(qrCode.expires_at);
-  const message = `Hi! Your B-STAR dynamic QR code (${shortCode}) is now active for 30 days until ${expiry}. Thank you for your payment!`;
-  if (!navigator.clipboard?.writeText) {
-    throw new Error('Clipboard access is unavailable in this browser context.');
-  }
-  await navigator.clipboard.writeText(message);
-  showAdminStatus(`WhatsApp confirmation for ${shortCode} copied.`, 'success');
+function dynamicQrWhatsAppLink(qrCode) {
+  const cleanPhone = qrPhoneForWhatsApp(qrCode.phone);
+  const message = `Hello! Your B-STAR Dynamic Image QR (${qrCode.code}) is now ACTIVE for 30 days. View link: ${dynamicQrLink(qrCode.code)}`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
 async function handleAdminQrAction(event) {
   const button = event.target.closest('[data-qr-action]');
   if (!button || !event.currentTarget.contains(button)) return;
+  const notificationWindow = button.dataset.qrAction === 'activate' ? window.open('about:blank', '_blank') : null;
+  if (notificationWindow) notificationWindow.opener = null;
   button.disabled = true;
   try {
-    if (button.dataset.qrAction === 'delete') {
-      await deleteDynamicQrCode(button.dataset.shortCode);
-    } else if (button.dataset.qrAction === 'copy') {
-      await copyQrConfirmation(button.dataset.shortCode);
-    } else {
-      await updateDynamicQrCode(button.dataset.shortCode, button.dataset.qrAction);
-    }
+    await updateDynamicQrCode(button.dataset.shortCode, button.dataset.qrAction, notificationWindow);
   } catch (error) {
+    if (notificationWindow && !notificationWindow.closed) notificationWindow.close();
     console.error('Admin dynamic QR action failed:', error);
     showAdminStatus(error.message, 'error');
   } finally {
@@ -1195,6 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   bindAdminActions();
+  restoreDynamicQrOrder();
   showDynamicQrViewer();
   refreshCatalog();
 });

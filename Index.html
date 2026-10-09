@@ -9,10 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.1">
+  <link rel="stylesheet" href="styles.css?v=2.3">
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   <script src="supabase-config.js?v=3" defer></script>
-  <script src="app.js?v=5" defer></script>
+  <script src="app.js?v=7" defer></script>
+  <script src="tools.js?v=2" defer></script>
 </head>
 <body>
   <div class="site-shell">
@@ -24,6 +27,7 @@
         </a>
         <div class="nav-links">
           <a href="#shop">Shop</a>
+          <a href="#tools">Digital Tools</a>
           <a href="#dynamic-qr">Dynamic QR</a>
           <a href="#why-bstar">Why B-STAR</a>
         </div>
@@ -43,6 +47,16 @@
       <div class="ticker-track" aria-hidden="true">
         <span class="ticker-content">Thoughtful tech. Trusted quality. Everything you need to work, create and play. All in one place. • </span>
         <span class="ticker-content">Thoughtful tech. Trusted quality. Everything you need to work, create and play. All in one place. • </span>
+      </div>
+    </div>
+
+    <div class="innovation-banner" role="img" aria-label="The Power and Gold Standard of Innovation. B-STAR TECHNOLOGIES.">
+      <div class="innovation-banner__stage" aria-hidden="true">
+        <p class="innovation-banner__item innovation-banner__message">The Power and <span>Gold Standard</span> of Innovation</p>
+        <div class="innovation-banner__item innovation-banner__badge">
+          <span class="brand-mark">B</span>
+          <span class="brand-name">B-STAR <span>TECHNOLOGIES</span></span>
+        </div>
       </div>
     </div>
 
@@ -75,6 +89,17 @@
         <div><span class="trust-icon">⌁</span><span>Here when you need us</span></div>
       </section>
 
+      <section class="tools-section section-wrap" id="tools" aria-labelledby="tools-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MADE FOR YOUR EVERYDAY</p>
+            <h2 id="tools-title">Digital Utilities <span class="heading-period">&amp; Tools.</span></h2>
+          </div>
+          <p class="tools-intro">Useful, private browser-based tools. Pay KES 10 once per tool to unlock it.</p>
+        </div>
+        <div class="tools-categories" id="tools-categories" aria-live="polite"></div>
+      </section>
+
       <section class="shop-section section-wrap" id="shop" aria-labelledby="shop-title">
         <div class="section-heading">
           <div><p class="eyebrow">CURATED FOR YOUR EVERYDAY</p><h2 id="shop-title">The collection<span class="heading-period">.</span></h2></div>
@@ -100,9 +125,9 @@
           <div>
             <p class="eyebrow">A NEW WAY TO SHARE</p>
             <h2 id="dynamic-qr-title">Dynamic Image QR Codes<span class="heading-period">.</span></h2>
-            <p class="dynamic-qr-tagline">Turn any menu, flyer, poster, or card into an active QR code. <strong>KES 99 / month.</strong></p>
+            <p class="dynamic-qr-tagline">Turn any menu, flyer, poster, or card into an active QR code.</p>
           </div>
-          <span class="dynamic-qr-price">KES 99 <small>/ month</small></span>
+          <span class="dynamic-qr-price">KES 99 / month <small>— Send to M-Pesa: 0794940193</small></span>
         </div>
         <div class="dynamic-qr-card">
           <form class="dynamic-qr-form" id="dynamic-qr-form">
@@ -116,18 +141,12 @@
             </label>
             <label class="qr-phone-label" for="qr-customer-phone">Customer Phone Number</label>
             <input class="qr-phone-input" id="qr-customer-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="20" required>
-            <p class="qr-form-note">Your image will be shared through a unique QR link. Activate the monthly service by WhatsApp after payment.</p>
-            <button class="button button-primary qr-generate-button" id="qr-generate-button" type="submit">Generate Dynamic QR Code (KES 99)</button>
+            <label class="qr-phone-label" for="qr-mpesa-code">M-Pesa Confirmation Code</label>
+            <input class="qr-phone-input" id="qr-mpesa-code" name="mpesaCode" type="text" autocomplete="off" placeholder="e.g. TKB8..." maxlength="20" pattern="[A-Za-z0-9]{8,20}" required>
+            <p class="qr-form-note">Your hosted image and QR link are created after submission. The link becomes viewable after payment approval.</p>
+            <button class="button button-primary qr-generate-button" id="qr-generate-button" type="submit">Create Dynamic Image QR (KES 99)</button>
             <p class="qr-status" id="qr-status" role="status" aria-live="polite" hidden></p>
           </form>
-          <div class="qr-result" id="qr-result" hidden>
-            <div class="qr-result-code" id="qr-code-output" aria-label="Generated QR code"></div>
-            <p class="qr-result-help">Scan to open your dynamic image link.</p>
-            <div class="qr-result-actions">
-              <button class="button button-secondary" id="qr-download-button" type="button">Download QR (PNG)</button>
-              <a class="button button-primary" id="qr-pay-button" href="#" target="_blank" rel="noopener noreferrer">Pay KES 99 via WhatsApp to Activate</a>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -166,6 +185,31 @@
     </div>
   </div>
 
+  <dialog class="qr-success-dialog" id="qr-success-dialog" aria-labelledby="qr-success-title">
+    <div class="qr-success-panel">
+      <header class="qr-viewer-header">
+        <a class="brand" href="#top" aria-label="B-STAR TECHNOLOGIES home"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">B-STAR <span>TECHNOLOGIES</span></span></a>
+        <button class="icon-button" id="qr-success-close" type="button" aria-label="Close QR details">×</button>
+      </header>
+      <div class="qr-success-content">
+        <p class="eyebrow">DYNAMIC IMAGE QR ORDER</p>
+        <h2 id="qr-success-title">Order Submitted</h2>
+        <p class="qr-success-status" id="qr-success-status">Awaiting Admin Activation (KES 99)</p>
+        <p class="qr-success-code" id="qr-success-code"></p>
+        <div class="qr-pending-state" id="qr-pending-state">
+          <span class="qr-pending-loader" aria-hidden="true"></span>
+          <p>Your request has been received. Once payment to 0794940193 is confirmed by admin, your QR code will unlock and appear right here automatically.</p>
+          <p class="qr-approval-message" id="qr-approval-message" role="status" aria-live="polite">Checking payment approval…</p>
+        </div>
+        <div class="qr-active-state" id="qr-active-state" hidden>
+          <a class="qr-success-link" id="qr-success-link" href="#" target="_blank" rel="noopener noreferrer"></a>
+          <div class="qr-code-output" id="qr-code-output" aria-label="Generated QR code"></div>
+          <button class="button button-primary" id="qr-download-button" type="button">Download QR (PNG)</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
   <aside class="cart-drawer" id="cart-drawer" aria-labelledby="cart-title" aria-modal="true" role="dialog" hidden>
     <div class="drawer-header"><div><p class="eyebrow">YOUR PICKS</p><h2 id="cart-title">Your cart <span id="cart-item-label">(0)</span></h2></div><button class="icon-button close-panel" id="close-cart" type="button" aria-label="Close cart">×</button></div>
@@ -177,6 +221,32 @@
       <button class="button button-primary checkout-button" id="checkout-button" type="button">Continue to WhatsApp <span aria-hidden="true">↗</span></button>
     </div>
   </aside>
+
+  <dialog class="tools-workspace" id="tools-workspace" aria-labelledby="tools-workspace-title">
+    <div class="tools-workspace-shell">
+      <header class="tools-workspace-header">
+        <div><p class="eyebrow" id="tools-workspace-category">DIGITAL UTILITIES</p><h2 id="tools-workspace-title">Tool</h2></div>
+        <button class="icon-button" id="tools-workspace-close" type="button" aria-label="Close tool">×</button>
+      </header>
+      <p class="tools-workspace-description" id="tools-workspace-description"></p>
+      <p class="tools-status" id="tools-status" role="status" aria-live="polite" hidden></p>
+      <div class="tools-workspace-content" id="tools-workspace-content"></div>
+    </div>
+  </dialog>
+
+  <dialog class="tools-paywall" id="tools-paywall" aria-labelledby="tools-paywall-title">
+    <form class="tools-paywall-shell" id="tools-paywall-form">
+      <header class="tools-workspace-header">
+        <div><p class="eyebrow">ONE-TIME TOOL ACCESS</p><h2 id="tools-paywall-title">Unlock this tool</h2></div>
+        <button class="icon-button" id="tools-paywall-close" type="button" aria-label="Close payment window">×</button>
+      </header>
+      <p class="tools-paywall-instructions">Send KES 10 via M-Pesa to <strong>0794940193</strong>. Enter your phone number and M-Pesa code below.</p>
+      <label>Your phone number<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" required maxlength="20"></label>
+      <label>M-Pesa transaction code<input name="mpesaCode" type="text" autocomplete="off" required maxlength="20" pattern="[A-Za-z0-9]{8,20}" placeholder="e.g. QGH7ABC123"></label>
+      <p class="tools-status" id="tools-paywall-status" role="status" aria-live="polite" hidden></p>
+      <button class="button button-primary" type="submit">Submit payment for approval</button>
+    </form>
+  </dialog>
 
   <dialog class="admin-dialog" id="admin-dialog" aria-labelledby="admin-title">
     <div class="admin-shell">
@@ -190,7 +260,8 @@
       <section class="admin-content" id="admin-content" hidden>
         <div class="admin-tabs" role="tablist" aria-label="Store dashboard sections">
           <button class="admin-tab is-active" id="catalog-tab" type="button" role="tab" aria-selected="true" aria-controls="catalog-panel" data-admin-tab="catalog">Products &amp; Catalog</button>
-          <button class="admin-tab" id="dynamic-qr-tab" type="button" role="tab" aria-selected="false" aria-controls="dynamic-qr-panel" data-admin-tab="dynamic-qr" tabindex="-1">Dynamic QR Codes</button>
+          <button class="admin-tab" id="dynamic-qr-tab" type="button" role="tab" aria-selected="false" aria-controls="dynamic-qr-panel" data-admin-tab="dynamic-qr" tabindex="-1">Image QR Activations</button>
+          <button class="admin-tab" id="tool-subscriptions-tab" type="button" role="tab" aria-selected="false" aria-controls="tool-subscriptions-panel" data-admin-tab="tool-subscriptions" tabindex="-1">Tool Subscriptions</button>
         </div>
         <section class="admin-tab-panel" id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab" data-admin-panel="catalog">
         <form class="category-admin-form" id="category-form">
@@ -217,12 +288,19 @@
           <button class="button button-primary" type="submit">Save product</button>
         </form>
         </section>
+        <section class="admin-tab-panel" id="tool-subscriptions-panel" role="tabpanel" aria-labelledby="tool-subscriptions-tab" data-admin-panel="tool-subscriptions" hidden>
+          <div class="admin-toolbar">
+            <div><span class="admin-label">KES 10 TOOL ACCESS</span><h3>Tool Subscriptions <span class="admin-product-count" id="tool-subscriptions-count">(0)</span></h3></div>
+            <button class="button button-secondary" id="refresh-tool-subscriptions" type="button">Refresh</button>
+          </div>
+          <div class="tool-subscriptions-list" id="tool-subscriptions-list" aria-live="polite"><p class="empty-state">Open this tab to load payment requests.</p></div>
+        </section>
         <section class="admin-tab-panel" id="dynamic-qr-panel" role="tabpanel" aria-labelledby="dynamic-qr-tab" data-admin-panel="dynamic-qr" hidden>
           <div class="admin-toolbar">
-            <div><span class="admin-label">LINK MANAGEMENT</span><h3>Dynamic QR Codes <span class="admin-product-count" id="admin-qr-count">(0)</span></h3></div>
+            <div><span class="admin-label">KES 99 / MONTH</span><h3>Dynamic Image QRs <span class="admin-product-count" id="admin-qr-count">(0)</span></h3></div>
             <button class="button button-secondary" id="refresh-qr-codes" type="button">Refresh</button>
           </div>
-          <p class="admin-qr-note">Activate only after confirming payment. Active links expire on the date shown.</p>
+          <p class="admin-qr-note">Verify each M-Pesa payment before activating. Active links expire after 30 days.</p>
           <div class="admin-qr-list" id="admin-qr-list" aria-live="polite">
             <p class="empty-state">QR codes load when an administrator opens this section.</p>
           </div>

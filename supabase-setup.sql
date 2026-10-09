@@ -137,6 +137,143 @@ create policy "Store admins can manage dynamic QR codes"
   using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
   with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
+create table if not exists public.dynamic_image_qrs (
+  code text primary key check (code ~ '^IMG-[A-Z0-9]{6}$'),
+  phone text not null check (phone ~ '^[0-9]{9,15}$'),
+  image_url text not null check (image_url ~ '^https://mwnburzestcooeyyuwow\.supabase\.co/storage/v1/object/public/qr-images/uploads/'),
+  mpesa_code text check (mpesa_code is null or mpesa_code ~ '^[A-Z0-9]{8,20}$'),
+  status text not null default 'pending_payment'
+    check (status in ('pending_payment', 'active', 'expired')),
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint dynamic_image_qrs_mpesa_code_key unique (mpesa_code)
+);
+
+create index if not exists dynamic_image_qrs_status_created_idx
+  on public.dynamic_image_qrs (status, created_at desc);
+
+alter table public.dynamic_image_qrs enable row level security;
+revoke all on public.dynamic_image_qrs from anon, authenticated;
+grant insert (code, phone, image_url, mpesa_code) on public.dynamic_image_qrs to anon;
+grant select, update on public.dynamic_image_qrs to authenticated;
+
+drop policy if exists "Customers can submit pending dynamic image QRs" on public.dynamic_image_qrs;
+create policy "Customers can submit pending dynamic image QRs"
+  on public.dynamic_image_qrs for insert
+  to anon
+  with check (
+    status = 'pending_payment'
+    and expires_at is null
+    and mpesa_code is not null
+    and code ~ '^IMG-[A-Z0-9]{6}$'
+    and image_url ~ '^https://mwnburzestcooeyyuwow\.supabase\.co/storage/v1/object/public/qr-images/uploads/'
+  );
+
+drop policy if exists "Store admins can manage dynamic image QRs" on public.dynamic_image_qrs;
+create policy "Store admins can manage dynamic image QRs"
+  on public.dynamic_image_qrs for all
+  to authenticated
+  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+create or replace function public.get_dynamic_image_qr(p_code text)
+returns table (image_url text, status text, expires_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select qr.image_url, qr.status, qr.expires_at
+  from public.dynamic_image_qrs as qr
+  where qr.code = p_code
+  limit 1;
+$$;
+
+revoke all on function public.get_dynamic_image_qr(text) from public;
+grant execute on function public.get_dynamic_image_qr(text) to anon, authenticated;
+
+with legacy_qrs as (
+  select
+    'IMG-' || old.short_code as code,
+    case
+      when normalized.phone_digits ~ '^0[0-9]{9}$' then '254' || substr(normalized.phone_digits, 2)
+      else normalized.phone_digits
+    end as phone,
+    old.image_url,
+    old.status,
+    old.expires_at,
+    old.created_at
+  from public.dynamic_qr_codes as old
+  cross join lateral (
+    select regexp_replace(old.contact_phone, '[^0-9]', '', 'g') as phone_digits
+  ) as normalized
+)
+insert into public.dynamic_image_qrs (code, phone, image_url, mpesa_code, status, expires_at, created_at)
+select code, phone, image_url, null, status, expires_at, created_at
+from legacy_qrs
+where phone ~ '^[0-9]{9,15}$'
+on conflict (code) do nothing;
+
+create table if not exists public.tool_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  phone text not null check (phone ~ '^[0-9]{9,15}$'),
+  tool_id text not null check (tool_id in (
+    'compress-pdf', 'pdf-to-jpg', 'image-to-pdf', 'pdf-merge', 'pdf-split',
+    'passport-photo', 'image-compress', 'image-resize', 'format-converter', 'image-crop',
+    'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
+    'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
+    'cv-checklist', 'business-checklist'
+  )),
+  mpesa_code text not null check (mpesa_code ~ '^[A-Z0-9]{8,20}$'),
+  amount_kes integer not null default 10 check (amount_kes = 10),
+  status text not null default 'pending_approval'
+    check (status in ('pending_approval', 'active', 'rejected')),
+  created_at timestamptz not null default now(),
+  unique (mpesa_code)
+);
+
+create index if not exists tool_subscriptions_lookup_idx
+  on public.tool_subscriptions (phone, tool_id, status);
+create index if not exists tool_subscriptions_created_idx
+  on public.tool_subscriptions (created_at desc);
+
+alter table public.tool_subscriptions enable row level security;
+revoke all on public.tool_subscriptions from anon, authenticated;
+grant insert (phone, tool_id, mpesa_code, status) on public.tool_subscriptions to anon;
+grant select, update on public.tool_subscriptions to authenticated;
+
+drop policy if exists "Customers can submit pending tool payments" on public.tool_subscriptions;
+create policy "Customers can submit pending tool payments"
+  on public.tool_subscriptions for insert
+  to anon
+  with check (status = 'pending_approval' and amount_kes = 10);
+
+drop policy if exists "Store admins can manage tool subscriptions" on public.tool_subscriptions;
+create policy "Store admins can manage tool subscriptions"
+  on public.tool_subscriptions for all
+  to authenticated
+  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+create or replace function public.has_active_tool_subscription(p_phone text, p_tool_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.tool_subscriptions as subscription
+    where subscription.phone = p_phone
+      and subscription.tool_id = p_tool_id
+      and subscription.status = 'active'
+  );
+$$;
+
+revoke all on function public.has_active_tool_subscription(text, text) from public;
+grant execute on function public.has_active_tool_subscription(text, text) to anon, authenticated;
+
 create or replace function public.get_dynamic_qr_code(p_short_code text)
 returns table (image_url text, status text, expires_at timestamptz)
 language sql

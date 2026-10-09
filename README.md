@@ -2,6 +2,8 @@
 
 A responsive, dark-mode tech storefront with a sticky glass navbar, searchable/category-filtered catalog, local cart drawer, WhatsApp order handoff, and Supabase-backed admin dashboard.
 
+The Digital Utilities & Tools section includes 21 browser-based utilities. PDFs and images are processed locally in the browser; only tool-payment submissions are sent to Supabase. Each tool unlock is KES 10 and requires manual M-Pesa verification by an administrator.
+
 ## Run locally
 
 Requires Node.js 18.17 or newer.
@@ -15,7 +17,7 @@ Open <http://127.0.0.1:10000>.
 ## Supabase setup
 
 1. Create a Supabase project.
-2. In the Supabase SQL Editor, run [`supabase-setup.sql`](./supabase-setup.sql). It creates the product, category and dynamic QR tables, constraints/indexes, public product/QR image buckets, and row/storage policies.
+2. In the Supabase SQL Editor, run [`supabase-setup.sql`](./supabase-setup.sql). It creates the product, category, Dynamic Image QR, and Digital Utilities subscription tables, constraints/indexes, public product/QR image buckets, and row/storage policies. Re-run this updated script to install the latest QR and `tool_subscriptions` tables and RPCs.
 3. Set the project URL and **public anon key** in [`supabase-config.js`](./supabase-config.js). These browser values are not secrets. Never put a service-role key in this file.
 4. Optionally set the store currency (an ISO 4217 code, default `KES`) and WhatsApp number in international format without `+`, such as `2547XXXXXXXX`.
 5. Enable email/password sign-in in Supabase Auth and create an administrator account. Set the trusted `app_metadata` claim `role: "admin"` using the Supabase Dashboard or a trusted Admin API operation. Never set admin claims from browser/user-editable metadata.
@@ -25,15 +27,13 @@ The storefront reads only active products in active categories. The cart persist
 
 ### Dynamic image QR codes
 
-After deploying this feature, run the updated [`supabase-setup.sql`](./supabase-setup.sql) in the Supabase SQL Editor. It creates the public `qr-images` bucket and `dynamic_qr_codes` table, permits bounded anonymous image uploads and pending KES 99 QR submissions, and exposes only the image, status and expiry fields through the public `get_dynamic_qr_code` RPC. New QR URLs use the current site origin and a `/qr/:code` path. The Node server handles `/qr/:code` and `/r/:code` before static files, looks up each code in Supabase, returns 404 for unknown codes, and redirects known codes to B-STAR WhatsApp. Database failures return a clear 503 response rather than leaving scans hanging. Legacy `#q=CODE` links are redirected to that server route on page load. The storefront QR flow stores image URLs in the `image_url` field of this separate table; product images continue to use `products.image_path`.
+After deploying this feature, run the updated [`supabase-setup.sql`](./supabase-setup.sql) in the Supabase SQL Editor. It creates the public `qr-images` bucket and `dynamic_image_qrs` table, permits bounded anonymous image uploads and pending KES 99 QR submissions, and exposes only the image, status and expiry fields through the public `get_dynamic_image_qr` RPC. New QR URLs use an `IMG-XXXXXX` code and the `/img-qr/:code` path. The Node server renders active hosted images with a Save Image button, pending-payment instructions, and branded not-found/expired pages. It validates that viewer image URLs belong to the configured Supabase Storage bucket. Existing `dynamic_qr_codes` rows are copied forward with their status and expiry preserved; historical rows have no M-Pesa code recorded. Legacy `/qr/:code`, `/r/:code`, and `#q=CODE` links remain supported.
 
-Customers can create pending QR codes, but payment is not processed automatically. Verify payment through WhatsApp, then use the authenticated Store dashboard's Dynamic QR Codes tab to activate, renew, expire or permanently delete codes and copy an activation confirmation. Deleting a code stops its QR link from working. For manual database activation, set the row to `active` and `expires_at` to its paid-through timestamp in the Supabase SQL Editor, for example:
+Customers submit a JPG, PNG or WebP image (up to 5 MB), their phone number, and M-Pesa confirmation code with the KES 99/month request. Verify payment manually, then use the authenticated Store dashboard's **Image QR Activations** tab to activate the code for 30 days. Activation opens a prefilled WhatsApp notification to the customer; if the browser blocks the popup, use the notification link on the active row. Payment collection and confirmation are not automated.
 
-```sql
-update public.dynamic_qr_codes
-set status = 'active', expires_at = now() + interval '1 month'
-where short_code = 'B8K29Z';
-```
+The viewer checks status and expiry server-side. Pending requests show payment instructions; only active, unexpired codes display their hosted image.
+
+Digital Utilities access is purchased per tool. Customers submit their phone number and M-Pesa transaction code for KES 10; submissions remain `pending_approval` until an administrator verifies payment and selects **Enable Service** in the Store dashboard's Tool Subscriptions tab. The browser calls the `has_active_tool_subscription` RPC to check access; it does not trust a client-set active flag. The RPC returns only a boolean, while subscription records are visible/manageable only to store administrators. Payment verification and M-Pesa collection are manual; the browser does not initiate or confirm payments.
 
 Public bucket images can be accessed by anyone who has the URL, and this static frontend has no upload rate limiter; configure additional abuse protection before promoting the upload form widely.
 
