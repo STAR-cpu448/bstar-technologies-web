@@ -7,7 +7,7 @@ const root = __dirname;
 const port = Number(process.env.PORT || 10000);
 const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
-const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js']);
+const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],
@@ -26,6 +26,280 @@ function sendText(response, status, message) {
     'Cache-Control': 'no-store',
   });
   response.end(message);
+}
+
+function sendJson(response, status, payload) {
+  const body = JSON.stringify(payload);
+  response.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
+  });
+  response.end(body);
+}
+
+async function readJson(request, maxBytes = 12000) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error('Request body is too large.');
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new Error('Request body must be valid JSON.');
+  }
+}
+
+function buildCorporateEmail({ roughText, tone, audience }) {
+  const notes = roughText.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const isBullet = /^[-*•]\s+/.test(line);
+      const cleaned = line.replace(/^(?:[-*•]|\d+[.)])\s+/, '')
+        .replace(/\s+/g, ' ')
+        .replace(/\bpls\b/gi, 'please')
+        .replace(/\basap\b/gi, 'as soon as possible')
+        .replace(/\bthx\b/gi, 'thank you')
+        .replace(/\bi\b/g, 'I')
+        .trim();
+      const sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      const punctuated = /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
+      return cleaned ? `${isBullet ? '• ' : ''}${punctuated}` : '';
+    })
+    .filter(Boolean);
+  const lead = {
+    formal: 'I am writing to share the following information for your consideration:',
+    diplomatic: 'Thank you for your continued engagement. To move forward constructively, I would like to discuss the following:',
+    urgent: 'I am following up on this time-sensitive matter and would appreciate your prompt attention to the following:',
+    decline: 'Thank you for considering us. After careful review, we are unable to proceed with the following request at this time:',
+  }[tone];
+  const close = {
+    formal: 'Please let me know if you have any questions or would like to discuss this further.',
+    diplomatic: 'I would welcome your perspective so we can agree on a constructive next step.',
+    urgent: 'Please confirm receipt and advise on the next steps at your earliest convenience.',
+    decline: 'We appreciate your understanding and hope there may be an opportunity to work together in the future.',
+  }[tone];
+  const audienceSalutation = {
+    client: 'Client',
+    supplier: 'Supplier',
+    investor: 'Investor',
+    colleague: 'Team',
+  }[audience];
+  const subjectSeed = (notes[0] || 'Business correspondence')
+    .replace(/^•\s+/, '')
+    .replace(/[.!?]+$/, '')
+    .slice(0, 90);
+  return {
+    subject: `Regarding: ${subjectSeed}`,
+    salutation: `Dear ${audienceSalutation},`,
+    body: `${lead}\n\n${notes.join('\n')}\n\n${close}`,
+    signoff: 'Kind regards,\nB-STAR TECHNOLOGIES',
+  };
+}
+
+async function handleEmailTransform(request, response) {
+  let payload;
+  try {
+    payload = await readJson(request);
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    sendJson(response, 400, { error: 'Request body must be a JSON object.' });
+    return;
+  }
+  const { roughText, tone, audience, phone, mpesaCode } = payload;
+  if (typeof roughText !== 'string' || !roughText.trim() || roughText.length > 6000) {
+    sendJson(response, 400, { error: 'Enter rough notes between 1 and 6,000 characters.' });
+    return;
+  }
+  if (!roughText.split(/\r?\n/).some((line) => line.replace(/^(?:[-*•]|\d+[.)])\s+/, '').trim())) {
+    sendJson(response, 400, { error: 'Add at least one note or key point to transform.' });
+    return;
+  }
+  if (!['formal', 'diplomatic', 'urgent', 'decline'].includes(tone)) {
+    sendJson(response, 400, { error: 'Select a supported email tone.' });
+    return;
+  }
+  if (!['client', 'supplier', 'investor', 'colleague'].includes(audience)) {
+    sendJson(response, 400, { error: 'Select a supported target audience.' });
+    return;
+  }
+  if (typeof phone !== 'string' || !/^[0-9]{9,15}$/.test(phone)) {
+    sendJson(response, 400, { error: 'Enter the phone number used for your payment.' });
+    return;
+  }
+  if (typeof mpesaCode !== 'string' || !/^[A-Z0-9]{8,20}$/i.test(mpesaCode)) {
+    sendJson(response, 400, { error: 'Enter a valid M-Pesa transaction code.' });
+    return;
+  }
+  if (!supabaseUrl || !supabaseAnonKey) {
+    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
+    return;
+  }
+
+  try {
+    const verificationResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/has_active_tool_payment`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_phone: phone,
+        p_tool_id: 'business-email-transformer',
+        p_mpesa_code: mpesaCode.toUpperCase(),
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!verificationResponse.ok) throw new Error(`Supabase returned HTTP ${verificationResponse.status}.`);
+    if (await verificationResponse.json() !== true) {
+      sendJson(response, 402, { error: 'Payment has not been approved yet. Your email tool unlocks after an administrator verifies your M-Pesa transaction.' });
+      return;
+    }
+    sendJson(response, 200, buildCorporateEmail({ roughText: roughText.trim(), tone, audience }));
+  } catch (error) {
+    console.error('Business email payment verification failed:', error);
+    sendJson(response, 503, { error: 'Could not verify payment right now. Please try again shortly.' });
+  }
+}
+
+const MODELER_TIERS = new Map([
+  ['maker', { toolId: '3d-modeler-maker', amount: 50 }],
+  ['pro', { toolId: '3d-modeler-pro', amount: 300 }],
+]);
+
+async function readModelerPayment(request, response) {
+  let payload;
+  try {
+    payload = await readJson(request, 4000);
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return null;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    sendJson(response, 400, { error: 'Request body must be a JSON object.' });
+    return null;
+  }
+  const tier = MODELER_TIERS.get(payload.tier);
+  const phone = typeof payload.phone === 'string' ? payload.phone.replace(/\D/g, '') : '';
+  const mpesaCode = typeof payload.mpesaCode === 'string' ? payload.mpesaCode.trim().toUpperCase() : '';
+  if (!tier || payload.amount_kes !== tier.amount) {
+    sendJson(response, 400, { error: 'Select a valid modeler license and matching price.' });
+    return null;
+  }
+  if (!/^[0-9]{9,15}$/.test(phone)) {
+    sendJson(response, 400, { error: 'Enter the phone number used for your M-Pesa payment.' });
+    return null;
+  }
+  if (!/^[A-Z0-9]{8,20}$/.test(mpesaCode)) {
+    sendJson(response, 400, { error: 'Enter a valid M-Pesa transaction code.' });
+    return null;
+  }
+  if (!supabaseUrl || !supabaseAnonKey) {
+    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
+    return null;
+  }
+  return { ...tier, phone, mpesaCode };
+}
+
+async function callSupabaseRpc(name, body) {
+  const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!result.ok) throw new Error(`Supabase payment verification returned HTTP ${result.status}.`);
+  return result.json();
+}
+
+async function handleModelerPayment(request, response) {
+  const payment = await readModelerPayment(request, response);
+  if (!payment) return;
+  try {
+    const rpcInput = {
+      p_phone: payment.phone,
+      p_tool_id: payment.toolId,
+      p_mpesa_code: payment.mpesaCode,
+      p_amount_kes: payment.amount,
+    };
+    const state = await callSupabaseRpc('get_modeler_payment_state', rpcInput);
+    if (state === 'approved') {
+      sendJson(response, 200, { approved: true, tier: payment.toolId, amount_kes: payment.amount });
+      return;
+    }
+    if (state === 'used') {
+      sendJson(response, 409, { error: 'This M-Pesa transaction has already been used for an STL export.' });
+      return;
+    }
+    if (state === 'pending') {
+      sendJson(response, 202, { approved: false, pending: true, message: 'Payment submitted. An administrator must verify it before the STL export is enabled.' });
+      return;
+    }
+    if (state === 'rejected') {
+      sendJson(response, 402, { error: 'This payment request was not approved. Contact B-STAR TECHNOLOGIES for help.' });
+      return;
+    }
+
+    const insertResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        phone: payment.phone,
+        tool_id: payment.toolId,
+        mpesa_code: payment.mpesaCode,
+        amount_kes: payment.amount,
+        status: 'pending_approval',
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!insertResponse.ok) {
+      const detail = await insertResponse.text();
+      console.error('Modeler payment request could not be recorded:', detail);
+      sendJson(response, insertResponse.status === 409 ? 409 : 503, {
+        error: insertResponse.status === 409
+          ? 'This M-Pesa transaction code has already been submitted.'
+          : 'Could not record the payment request. Run the latest supabase-setup.sql and try again.',
+      });
+      return;
+    }
+    sendJson(response, 202, { approved: false, pending: true, message: 'Payment submitted. An administrator must verify it before the STL export is enabled.' });
+  } catch (error) {
+    console.error('Could not process modeler payment:', error);
+    sendJson(response, 503, { error: 'Could not check or submit this payment right now. Please try again shortly.' });
+  }
+}
+
+async function handleModelerExport(request, response) {
+  const payment = await readModelerPayment(request, response);
+  if (!payment) return;
+  try {
+    const consumed = await callSupabaseRpc('consume_modeler_export_payment', {
+      p_phone: payment.phone,
+      p_tool_id: payment.toolId,
+      p_mpesa_code: payment.mpesaCode,
+      p_amount_kes: payment.amount,
+    });
+    if (consumed !== true) {
+      sendJson(response, 409, { error: 'Payment is not approved, or this transaction has already been used for an STL export.' });
+      return;
+    }
+    sendJson(response, 200, { consumed: true });
+  } catch (error) {
+    console.error('Could not authorize modeler STL export:', error);
+    sendJson(response, 503, { error: 'Could not authorize the STL export right now. Please try again shortly.' });
+  }
 }
 
 function sendHtml(response, status, html, headOnly = false) {
@@ -229,6 +503,18 @@ async function handleQrRedirect(response, code) {
 
 const server = http.createServer((request, response) => {
   console.log(`[ROUTE HIT] ${request.method} ${request.url}`);
+  if (request.method === 'POST' && request.url === '/api/email/transform') {
+    void handleEmailTransform(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/modeler/payment') {
+    void handleModelerPayment(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/modeler/export') {
+    void handleModelerExport(request, response);
+    return;
+  }
   if (!['GET', 'HEAD'].includes(request.method)) {
     response.setHeader('Allow', 'GET, HEAD');
     sendText(response, 405, 'Method not allowed');

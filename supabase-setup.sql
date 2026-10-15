@@ -222,15 +222,54 @@ create table if not exists public.tool_subscriptions (
     'passport-photo', 'image-compress', 'image-resize', 'format-converter', 'image-crop',
     'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
     'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
-    'cv-checklist', 'business-checklist'
+    'cv-checklist', 'business-checklist', 'business-email-transformer',
+    '3d-modeler-maker', '3d-modeler-pro'
   )),
   mpesa_code text not null check (mpesa_code ~ '^[A-Z0-9]{8,20}$'),
-  amount_kes integer not null default 10 check (amount_kes = 10),
+  amount_kes integer not null default 10,
   status text not null default 'pending_approval'
     check (status in ('pending_approval', 'active', 'rejected')),
   created_at timestamptz not null default now(),
+  exported_at timestamptz,
   unique (mpesa_code)
 );
+
+alter table public.tool_subscriptions
+  add column if not exists amount_kes integer not null default 10;
+alter table public.tool_subscriptions
+  add column if not exists exported_at timestamptz;
+
+alter table public.tool_subscriptions
+  drop constraint if exists tool_subscriptions_tool_id_check,
+  drop constraint if exists tool_subscriptions_amount_kes_check;
+update public.tool_subscriptions
+set amount_kes = 50
+where tool_id = 'business-email-transformer';
+update public.tool_subscriptions
+set amount_kes = case
+  when tool_id = '3d-modeler-maker' then 50
+  when tool_id = '3d-modeler-pro' then 300
+  else amount_kes
+end
+where tool_id in ('3d-modeler-maker', '3d-modeler-pro');
+alter table public.tool_subscriptions
+  add constraint tool_subscriptions_tool_id_check check (tool_id in (
+    'compress-pdf', 'pdf-to-jpg', 'image-to-pdf', 'pdf-merge', 'pdf-split',
+    'passport-photo', 'image-compress', 'image-resize', 'format-converter', 'image-crop',
+    'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
+    'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
+    'cv-checklist', 'business-checklist', 'business-email-transformer',
+    '3d-modeler-maker', '3d-modeler-pro'
+  )),
+  add constraint tool_subscriptions_amount_kes_check check (
+    (tool_id = 'business-email-transformer' and amount_kes = 50)
+    or (tool_id = '3d-modeler-maker' and amount_kes = 50)
+    or (tool_id = '3d-modeler-pro' and amount_kes = 300)
+    or (
+      tool_id not in ('business-email-transformer', '3d-modeler-maker', '3d-modeler-pro')
+      and amount_kes = 10
+    )
+  );
 
 create index if not exists tool_subscriptions_lookup_idx
   on public.tool_subscriptions (phone, tool_id, status);
@@ -239,14 +278,22 @@ create index if not exists tool_subscriptions_created_idx
 
 alter table public.tool_subscriptions enable row level security;
 revoke all on public.tool_subscriptions from anon, authenticated;
-grant insert (phone, tool_id, mpesa_code, status) on public.tool_subscriptions to anon;
+grant insert (phone, tool_id, mpesa_code, amount_kes, status) on public.tool_subscriptions to anon;
 grant select, update on public.tool_subscriptions to authenticated;
 
 drop policy if exists "Customers can submit pending tool payments" on public.tool_subscriptions;
 create policy "Customers can submit pending tool payments"
   on public.tool_subscriptions for insert
   to anon
-  with check (status = 'pending_approval' and amount_kes = 10);
+  with check (
+    status = 'pending_approval'
+    and (
+      (tool_id = 'business-email-transformer' and amount_kes = 50)
+      or (tool_id = '3d-modeler-maker' and amount_kes = 50)
+      or (tool_id = '3d-modeler-pro' and amount_kes = 300)
+      or (tool_id not in ('business-email-transformer', '3d-modeler-maker', '3d-modeler-pro') and amount_kes = 10)
+    )
+  );
 
 drop policy if exists "Store admins can manage tool subscriptions" on public.tool_subscriptions;
 create policy "Store admins can manage tool subscriptions"
@@ -273,6 +320,80 @@ $$;
 
 revoke all on function public.has_active_tool_subscription(text, text) from public;
 grant execute on function public.has_active_tool_subscription(text, text) to anon, authenticated;
+
+create or replace function public.has_active_tool_payment(p_phone text, p_tool_id text, p_mpesa_code text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.tool_subscriptions as subscription
+    where subscription.phone = p_phone
+      and subscription.tool_id = p_tool_id
+      and subscription.mpesa_code = p_mpesa_code
+      and subscription.status = 'active'
+  );
+$$;
+
+revoke all on function public.has_active_tool_payment(text, text, text) from public;
+grant execute on function public.has_active_tool_payment(text, text, text) to anon, authenticated;
+
+create or replace function public.get_modeler_payment_state(
+  p_phone text, p_tool_id text, p_mpesa_code text, p_amount_kes integer
+)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when subscription.status = 'active' and subscription.exported_at is null then 'approved'
+    when subscription.status = 'active' then 'used'
+    else subscription.status
+  end
+  from public.tool_subscriptions as subscription
+  where subscription.phone = p_phone
+    and subscription.tool_id = p_tool_id
+    and subscription.mpesa_code = p_mpesa_code
+    and subscription.amount_kes = p_amount_kes
+    and p_tool_id in ('3d-modeler-maker', '3d-modeler-pro')
+  limit 1;
+$$;
+
+revoke all on function public.get_modeler_payment_state(text, text, text, integer) from public;
+grant execute on function public.get_modeler_payment_state(text, text, text, integer) to anon, authenticated;
+
+create or replace function public.consume_modeler_export_payment(
+  p_phone text, p_tool_id text, p_mpesa_code text, p_amount_kes integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  consumed boolean := false;
+begin
+  update public.tool_subscriptions as subscription
+  set exported_at = now()
+  where subscription.phone = p_phone
+    and subscription.tool_id = p_tool_id
+    and subscription.mpesa_code = p_mpesa_code
+    and subscription.amount_kes = p_amount_kes
+    and subscription.status = 'active'
+    and subscription.exported_at is null
+    and p_tool_id in ('3d-modeler-maker', '3d-modeler-pro')
+  returning true into consumed;
+  return coalesce(consumed, false);
+end;
+$$;
+
+revoke all on function public.consume_modeler_export_payment(text, text, text, integer) from public;
+grant execute on function public.consume_modeler_export_payment(text, text, text, integer) to anon, authenticated;
 
 create or replace function public.get_dynamic_qr_code(p_short_code text)
 returns table (image_url text, status text, expires_at timestamptz)

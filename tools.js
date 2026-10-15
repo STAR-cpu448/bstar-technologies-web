@@ -36,11 +36,21 @@
       ['cv-checklist', 'CV Checklist', 'Track the essentials for a strong CV.', '☑'],
       ['business-checklist', 'Business Name Checklist', 'Track the steps for choosing a business name.', '☑'],
     ] },
+    { name: 'Business', tools: [
+      ['business-email-transformer', 'Business Email Transformer', 'Turn rough notes into a polished corporate email.', '✉'],
+    ] },
   ];
 
   const TITLES = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id, title]) => [id, title])));
   const DESCRIPTIONS = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id, title, description]) => [id, description])));
   const GROUPS = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id]) => [id, group.name])));
+  TITLES.set('3d-modeler-maker', '3D Modeler — Maker License');
+  TITLES.set('3d-modeler-pro', '3D Modeler — Pro License');
+  const PRICES = new Map([
+    ['business-email-transformer', 50],
+    ['3d-modeler-maker', 50],
+    ['3d-modeler-pro', 300],
+  ]);
   const CHECKLISTS = {
     'cv-checklist': [
       'Add clear contact details and a professional email address.',
@@ -61,6 +71,7 @@
   };
   let currentTool = null;
   let pendingToolId = null;
+  let currentPaymentCode = '';
   let cropState = null;
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -92,10 +103,18 @@
 
   function renderCards() {
     const root = $('#tools-categories');
+    const filterNav = $('#tools-filter-nav');
     root.replaceChildren();
+    filterNav.querySelectorAll('[data-tool-category]:not([data-tool-category="all"])').forEach((filter) => filter.remove());
     TOOL_GROUPS.forEach(({ name, tools }) => {
       const section = el('section', 'tools-category');
+      section.dataset.toolCategory = name;
       section.append(el('h3', 'tools-category-heading', name));
+      const filter = el('button', 'tools-filter', name);
+      filter.type = 'button';
+      filter.dataset.toolCategory = name;
+      filter.setAttribute('aria-pressed', 'false');
+      filterNav.append(filter);
       const grid = el('div', 'tools-card-grid');
       tools.forEach(([id, title, description, icon]) => {
         const button = el('button', 'tools-card');
@@ -103,11 +122,24 @@
         button.dataset.toolId = id;
         const symbol = el('span', 'tools-card-icon', icon);
         symbol.setAttribute('aria-hidden', 'true');
-        button.append(symbol, el('strong', '', title), el('span', '', `${description} · KES 10`));
+        const price = el('span', 'tools-price-badge', `KES ${PRICES.get(id) || FEE}`);
+        const summary = el('span', 'tools-card-description', description);
+        button.append(symbol, el('strong', '', title), summary, price);
         grid.append(button);
       });
       section.append(grid);
       root.append(section);
+    });
+  }
+
+  function filterToolCategories(category) {
+    $('#tools-categories').querySelectorAll('.tools-category').forEach((section) => {
+      section.hidden = category !== 'all' && section.dataset.toolCategory !== category;
+    });
+    $('#tools-filter-nav').querySelectorAll('[data-tool-category]').forEach((filter) => {
+      const active = filter.dataset.toolCategory === category;
+      filter.classList.toggle('is-active', active);
+      filter.setAttribute('aria-pressed', String(active));
     });
   }
 
@@ -117,6 +149,21 @@
     if (digits.startsWith('254') && digits.length === 12) return digits;
     if (digits.length >= 9 && digits.length <= 15) return digits;
     return '';
+  }
+
+  function isMissingColumn(error, column) {
+    return ['42703', 'PGRST204'].includes(error?.code)
+      && new RegExp(column, 'i').test(`${error.message || ''} ${error.details || ''}`);
+  }
+
+  async function insertToolSubscription(client, subscription) {
+    let { error } = await client.from('tool_subscriptions').insert(subscription);
+    if (isMissingColumn(error, 'amount_kes')) {
+      const compatibleSubscription = { ...subscription };
+      delete compatibleSubscription.amount_kes;
+      ({ error } = await client.from('tool_subscriptions').insert(compatibleSubscription));
+    }
+    return error;
   }
 
   async function activeSubscription(phone, toolId) {
@@ -129,10 +176,21 @@
     return data === true;
   }
 
+  async function activePayment(phone, toolId, code) {
+    const client = await getClient();
+    const { data, error } = await client.rpc('has_active_tool_payment', {
+      p_phone: phone,
+      p_tool_id: toolId,
+      p_mpesa_code: code,
+    });
+    if (error) throw new Error(`Unable to verify payment approval: ${error.message}`);
+    return data === true;
+  }
+
   async function requestTool(toolId) {
     pendingToolId = toolId;
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
-    if (rememberedPhone) {
+    if (rememberedPhone && toolId !== 'business-email-transformer') {
       try {
         if (await activeSubscription(rememberedPhone, toolId)) {
           openTool(toolId);
@@ -144,7 +202,12 @@
       }
     }
     $('#tools-paywall-title').textContent = `Unlock ${TITLES.get(toolId)}`;
+    const price = PRICES.get(toolId) || FEE;
+    $('#tools-paywall-instructions').innerHTML = `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter your phone number and M-Pesa transaction code below. Access is enabled after an administrator verifies your payment.`;
     $('#tools-paywall-form').elements.phone.value = rememberedPhone;
+    $('#tools-paywall-form').querySelector('[type="submit"]').textContent = toolId === 'business-email-transformer'
+      ? 'Verify / Unlock'
+      : 'Submit payment for approval';
     document.body.classList.add('panel-open');
     $('#tools-paywall').showModal();
     $('#tools-paywall-form').elements.phone.focus();
@@ -233,6 +296,35 @@
   function renderTool(id) {
     const content = $('#tools-workspace-content');
     const fileAccept = 'image/jpeg,image/png,image/webp';
+    if (id === 'business-email-transformer') {
+      content.append(
+        field('Rough notes or key points', (() => {
+          const notes = el('textarea');
+          notes.name = 'roughText';
+          notes.rows = 8;
+          notes.maxLength = 6000;
+          notes.required = true;
+          notes.placeholder = 'Add the key points, request, context, and any important details to include…';
+          return notes;
+        })()),
+        formGrid(
+          field('Tone', select('tone', [
+            ['formal', 'Formal / Corporate'],
+            ['diplomatic', 'Diplomatic / Negotiation'],
+            ['urgent', 'Urgent Follow-up'],
+            ['decline', 'Polite Decline'],
+          ])),
+          field('Target audience', select('audience', [
+            ['client', 'Client'],
+            ['supplier', 'Supplier'],
+            ['investor', 'Investor'],
+            ['colleague', 'Colleague'],
+          ])),
+        ),
+        button('Transform into a professional email', 'transform-email'),
+      );
+      return;
+    }
     if (id === 'compress-pdf' || id === 'pdf-to-jpg' || id === 'pdf-split') {
       const file = setFile('pdf');
       file.accept = 'application/pdf,.pdf';
@@ -912,7 +1004,20 @@
     const action = event.target.closest('[data-tool-action]')?.dataset.toolAction;
     if (!action) return;
     try {
-      if (action === 'run') {
+      if (action === 'transform-email') {
+        if (!formValue('roughText').value.trim()) throw new Error('Add some notes or key points before transforming.');
+        const transformButton = event.target.closest('[data-tool-action]');
+        transformButton.disabled = true;
+        runEmailTransformation().catch((error) => {
+          console.error('Business email transformation failed:', error);
+          setStatus(error.message || 'The email could not be transformed.', 'error');
+        }).finally(() => { transformButton.disabled = false; });
+      } else if (action === 'copy-email') {
+        copyTransformedEmail().catch((error) => {
+          console.error('Could not copy transformed email:', error);
+          setStatus(`Could not copy email: ${error.message}`, 'error');
+        });
+      } else if (action === 'run') {
         const required = getForm().querySelectorAll('[required]');
         for (const control of required) {
           if (control.type === 'file' && control.multiple ? !control.files.length : control.type === 'file' ? !control.files[0] : !control.value.trim()) {
@@ -949,6 +1054,52 @@
     }
   }
 
+  async function runEmailTransformation() {
+    if (!currentPaymentCode) throw new Error('Verify your approved payment before transforming an email.');
+    setStatus('Preparing your professional email…');
+    const response = await fetch('/api/email/transform', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roughText: formValue('roughText').value.trim(),
+        tone: formValue('tone').value,
+        audience: formValue('audience').value,
+        phone: localStorage.getItem(STORAGE_PHONE) || '',
+        mpesaCode: currentPaymentCode,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `The email service returned HTTP ${response.status}.`);
+    $('#tools-workspace-content [data-email-result="true"]')?.remove();
+    const box = output();
+    box.dataset.emailResult = 'true';
+    box.replaceChildren();
+    [
+      ['Subject Line', result.subject],
+      ['Formal Salutation', result.salutation],
+      ['Polished Email Body', result.body],
+      ['Professional Sign-off', result.signoff],
+    ].forEach(([label, value]) => {
+      if (typeof value !== 'string' || !value) throw new Error('The email service returned an incomplete response.');
+      const block = el('div', 'tools-email-field');
+      block.append(el('strong', '', label), el('p', '', value));
+      block.dataset.emailField = label;
+      block.dataset.emailValue = value;
+      box.append(block);
+    });
+    box.append(button('Copy to Clipboard', 'copy-email', true));
+    setStatus('Your professional email is ready.', 'success');
+  }
+
+  async function copyTransformedEmail() {
+    const fields = [...$('#tools-workspace-content [data-email-field]')];
+    if (!fields.length) throw new Error('Transform an email before copying it.');
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable. Select and copy the email manually.');
+    const text = fields.map((field) => `${field.dataset.emailField}\n${field.dataset.emailValue}`).join('\n\n');
+    await navigator.clipboard.writeText(text);
+    setStatus('Email copied to clipboard.', 'success');
+  }
+
   async function submitPaywall(event) {
     event.preventDefault();
     if (!pendingToolId) return;
@@ -960,17 +1111,43 @@
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     try {
+      if (pendingToolId === 'business-email-transformer') {
+        if (await activePayment(phone, pendingToolId, code)) {
+          localStorage.setItem(STORAGE_PHONE, phone);
+          currentPaymentCode = code;
+          setPaywallStatus('Payment verified. Your Business Email Transformer is unlocked.', 'success');
+          closeDialog($('#tools-paywall'));
+          openTool(pendingToolId);
+          return;
+        }
+        const client = await getClient();
+        const error = await insertToolSubscription(client, {
+          phone,
+          tool_id: pendingToolId,
+          mpesa_code: code,
+          amount_kes: PRICES.get(pendingToolId),
+          status: 'pending_approval',
+        });
+        if (error && error.code !== '23505') throw new Error(error.message);
+        localStorage.setItem(STORAGE_PHONE, phone);
+        setPaywallStatus(error
+          ? 'This code was already submitted. It will unlock after an administrator verifies the payment; try Verify / Unlock again later.'
+          : 'Payment submitted for review. The tool will unlock after an administrator verifies your KES 50 M-Pesa payment. You can return and select Verify / Unlock again.',
+        'success');
+        return;
+      }
       const client = await getClient();
-      const { error } = await client.from('tool_subscriptions').insert({
+      const error = await insertToolSubscription(client, {
         phone,
         tool_id: pendingToolId,
         mpesa_code: code,
+        amount_kes: PRICES.get(pendingToolId) || FEE,
         status: 'pending_approval',
       });
       if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
       setPaywallStatus('Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
-      form.elements.mpesaCode.value = '';
+      if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
       console.error('Could not submit tool payment:', error);
       setPaywallStatus(`Could not submit payment: ${error.message}`, 'error');
@@ -987,9 +1164,18 @@
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
     if (sessionError) throw new Error(sessionError.message);
     if (sessionData.session?.user?.app_metadata?.role !== 'admin') throw new Error('Administrator access required.');
-    const { data, error } = await client.from('tool_subscriptions')
-      .select('id,phone,tool_id,mpesa_code,status,created_at')
-      .order('created_at', { ascending: false });
+    let fields = ['id', 'phone', 'tool_id', 'mpesa_code', 'amount_kes', 'exported_at', 'status', 'created_at'];
+    let data;
+    let error;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      ({ data, error } = await client.from('tool_subscriptions')
+        .select(fields.join(','))
+        .order('created_at', { ascending: false }));
+      if (!error) break;
+      const missingField = ['amount_kes', 'exported_at'].find((field) => fields.includes(field) && isMissingColumn(error, field));
+      if (!missingField) break;
+      fields = fields.filter((field) => field !== missingField);
+    }
     if (error) throw new Error(`Unable to load tool payments: ${error.message}`);
     list.replaceChildren();
     count.textContent = `(${data.length})`;
@@ -1000,10 +1186,14 @@
       const title = el('strong', '', TITLES.get(subscription.tool_id) || subscription.tool_id);
       const date = new Date(subscription.created_at);
       const dateText = Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
-      const meta = el('small', '', `${subscription.phone} · M-Pesa: ${subscription.mpesa_code} · ${subscription.status} · ${dateText}`);
+      const amount = subscription.amount_kes ?? PRICES.get(subscription.tool_id) ?? FEE;
+      const paymentState = subscription.exported_at ? 'export used' : subscription.status;
+      const meta = el('small', '', `${subscription.phone} · KES ${amount} · M-Pesa: ${subscription.mpesa_code} · ${paymentState} · ${dateText}`);
       details.append(title, meta);
       const actions = el('div', 'tools-admin-actions');
-      if (subscription.status !== 'active') {
+      if (subscription.exported_at) {
+        actions.append(el('span', 'tools-check-progress', 'Export Used'));
+      } else if (subscription.status !== 'active') {
         const enable = button('Enable Service', 'enable-subscription');
         enable.className = 'admin-action activate';
         enable.dataset.subscriptionId = subscription.id;
@@ -1049,7 +1239,11 @@
 
   function init() {
     renderCards();
-    $('#tools-categories').addEventListener('click', (event) => {
+    $('#tools-filter-nav').addEventListener('click', (event) => {
+      const filter = event.target.closest('[data-tool-category]');
+      if (filter) filterToolCategories(filter.dataset.toolCategory);
+    });
+    $('#tools').addEventListener('click', (event) => {
       const card = event.target.closest('[data-tool-id]');
       if (card) requestTool(card.dataset.toolId).catch((error) => {
         console.error('Could not open tool:', error);

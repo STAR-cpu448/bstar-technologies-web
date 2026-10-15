@@ -9,13 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.3">
+  <link rel="stylesheet" href="styles.css?v=2.6">
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   <script src="supabase-config.js?v=3" defer></script>
   <script src="app.js?v=7" defer></script>
-  <script src="tools.js?v=2" defer></script>
+  <script src="tools.js?v=5" defer></script>
 </head>
 <body>
   <div class="site-shell">
@@ -27,7 +27,7 @@
         </a>
         <div class="nav-links">
           <a href="#shop">Shop</a>
-          <a href="#tools">Digital Tools</a>
+          <a class="nav-tools-link" href="#tools">Digital Tools <span aria-hidden="true">↗</span></a>
           <a href="#dynamic-qr">Dynamic QR</a>
           <a href="#why-bstar">Why B-STAR</a>
         </div>
@@ -66,7 +66,11 @@
           <div class="eyebrow"><span class="status-dot"></span> THE FUTURE, WITHIN REACH</div>
           <h1 id="hero-title">Find your next<br><span>great connection.</span></h1>
           <p>Thoughtful tech. Trusted quality. Everything you need to work, create and play — all in one place.</p>
-          <a class="button button-primary" href="#shop">Explore the collection <span aria-hidden="true">↗</span></a>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#shop">Explore the collection <span aria-hidden="true">↗</span></a>
+            <a class="button button-hero-secondary" href="#tools">Explore Digital Tools <span aria-hidden="true">↗</span></a>
+            <a class="button button-hero-studio" href="/modeler.html">3D Studio <span aria-hidden="true">✦</span></a>
+          </div>
           <div class="hero-proof"><span class="proof-stars" aria-label="5 out of 5 stars">★★★★★</span><span>Technology that works for you</span></div>
         </div>
         <div class="hero-art" aria-hidden="true">
@@ -95,8 +99,37 @@
             <p class="eyebrow">MADE FOR YOUR EVERYDAY</p>
             <h2 id="tools-title">Digital Utilities <span class="heading-period">&amp; Tools.</span></h2>
           </div>
-          <p class="tools-intro">Useful, private browser-based tools. Pay KES 10 once per tool to unlock it.</p>
+          <p class="tools-intro">Smart, practical browser-based utilities. Unlock tools from KES 10, with pricing shown up front.</p>
         </div>
+        <section class="tools-spotlight" aria-labelledby="tools-spotlight-title">
+          <div class="tools-spotlight-heading">
+            <div>
+              <p class="eyebrow"><span class="tools-spotlight-spark" aria-hidden="true">✦</span> THE B-STAR TOOLKIT</p>
+              <h3 id="tools-spotlight-title">Standout tools. <span>Ready when you are.</span></h3>
+            </div>
+            <span class="tools-spotlight-badge">FEATURED</span>
+          </div>
+          <div class="tools-spotlight-grid">
+            <button class="tools-spotlight-card is-email" type="button" data-tool-id="business-email-transformer">
+              <span class="tools-spotlight-icon" aria-hidden="true">✉</span>
+              <span class="tools-spotlight-copy"><strong>Business Email Transformer</strong><small>Turn rough notes into a polished professional email.</small></span>
+              <span class="tools-price-badge">KES 50</span>
+            </button>
+            <button class="tools-spotlight-card" type="button" data-tool-id="compress-pdf">
+              <span class="tools-spotlight-icon" aria-hidden="true">▤</span>
+              <span class="tools-spotlight-copy"><strong>Compress PDF</strong><small>Reduce PDF file size in your browser.</small></span>
+              <span class="tools-price-badge">KES 10</span>
+            </button>
+            <button class="tools-spotlight-card" type="button" data-tool-id="pdf-merge">
+              <span class="tools-spotlight-icon" aria-hidden="true">⊕</span>
+              <span class="tools-spotlight-copy"><strong>Merge PDFs</strong><small>Bring multiple documents together with ease.</small></span>
+              <span class="tools-price-badge">KES 10</span>
+            </button>
+          </div>
+        </section>
+        <nav class="tools-filter-nav" id="tools-filter-nav" aria-label="Filter digital tools">
+          <button class="tools-filter is-active" type="button" data-tool-category="all" aria-pressed="true">All tools</button>
+        </nav>
         <div class="tools-categories" id="tools-categories" aria-live="polite"></div>
       </section>
 
@@ -240,7 +273,7 @@
         <div><p class="eyebrow">ONE-TIME TOOL ACCESS</p><h2 id="tools-paywall-title">Unlock this tool</h2></div>
         <button class="icon-button" id="tools-paywall-close" type="button" aria-label="Close payment window">×</button>
       </header>
-      <p class="tools-paywall-instructions">Send KES 10 via M-Pesa to <strong>0794940193</strong>. Enter your phone number and M-Pesa code below.</p>
+      <p class="tools-paywall-instructions" id="tools-paywall-instructions">Send KES 10 via M-Pesa to <strong>0794940193</strong>. Enter your phone number and M-Pesa code below.</p>
       <label>Your phone number<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" required maxlength="20"></label>
       <label>M-Pesa transaction code<input name="mpesaCode" type="text" autocomplete="off" required maxlength="20" pattern="[A-Za-z0-9]{8,20}" placeholder="e.g. QGH7ABC123"></label>
       <p class="tools-status" id="tools-paywall-status" role="status" aria-live="polite" hidden></p>
@@ -290,7 +323,7 @@
         </section>
         <section class="admin-tab-panel" id="tool-subscriptions-panel" role="tabpanel" aria-labelledby="tool-subscriptions-tab" data-admin-panel="tool-subscriptions" hidden>
           <div class="admin-toolbar">
-            <div><span class="admin-label">KES 10 TOOL ACCESS</span><h3>Tool Subscriptions <span class="admin-product-count" id="tool-subscriptions-count">(0)</span></h3></div>
+            <div><span class="admin-label">TOOL ACCESS PAYMENTS</span><h3>Tool Subscriptions <span class="admin-product-count" id="tool-subscriptions-count">(0)</span></h3></div>
             <button class="button button-secondary" id="refresh-tool-subscriptions" type="button">Refresh</button>
           </div>
           <div class="tool-subscriptions-list" id="tool-subscriptions-list" aria-live="polite"><p class="empty-state">Open this tab to load payment requests.</p></div>
