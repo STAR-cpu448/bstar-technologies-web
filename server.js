@@ -308,6 +308,52 @@ async function handleModelerExport(request, response) {
   }
 }
 
+async function handleCreateImageQr(request, response) {
+  let payload;
+  try {
+    payload = await readJson(request, 20000);
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return;
+  }
+  try {
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase URL or key is not configured.');
+    }
+    const insertResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/dynamic_image_qrs`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({
+        code: payload.code,
+        image_url: payload.imageUrl,
+        phone: payload.phone,
+        mpesa_code: payload.mpesaCode,
+        amount_kes: payload.amount || 99,
+        status: 'pending_payment',
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!insertResponse.ok) {
+      const errText = await insertResponse.text();
+      if (insertResponse.status === 409 || /duplicate key|unique constraint/i.test(errText)) {
+        sendJson(response, 409, { error: 'That M-Pesa confirmation code has already been submitted.' });
+        return;
+      }
+      throw new Error(`Supabase insert failed: ${errText}`);
+    }
+    const data = await insertResponse.json();
+    sendJson(response, 200, { success: true, data });
+  } catch (error) {
+    console.error('Could not create dynamic image QR record:', error);
+    sendJson(response, 503, { error: error.message || 'Could not create your dynamic image QR record right now.' });
+  }
+}
+
 function sendHtml(response, status, html, headOnly = false) {
   const body = headOnly ? '' : html;
   response.writeHead(status, {
@@ -524,6 +570,10 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === 'POST' && request.url === '/api/modeler/export') {
     void handleModelerExport(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/qr/create') {
+    void handleCreateImageQr(request, response);
     return;
   }
   if (!['GET', 'HEAD'].includes(request.method)) {
