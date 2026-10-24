@@ -6,7 +6,7 @@ const storeConfig = require('./supabase-config.js');
 const root = __dirname;
 const port = Number(process.env.PORT || 10000);
 const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
 const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -139,7 +139,7 @@ async function handleEmailTransform(request, response) {
     sendJson(response, 400, { error: 'Enter a valid M-Pesa transaction code.' });
     return;
   }
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
     return;
   }
@@ -148,7 +148,8 @@ async function handleEmailTransform(request, response) {
     const verificationResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/has_active_tool_payment`, {
       method: 'POST',
       headers: {
-        apikey: supabaseAnonKey,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -202,7 +203,7 @@ async function readModelerPayment(request, response) {
     sendJson(response, 400, { error: 'Enter a valid M-Pesa transaction code.' });
     return null;
   }
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
     return null;
   }
@@ -212,7 +213,11 @@ async function readModelerPayment(request, response) {
 async function callSupabaseRpc(name, body) {
   const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/${name}`, {
     method: 'POST',
-    headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(10000),
   });
@@ -251,7 +256,8 @@ async function handleModelerPayment(request, response) {
     const insertResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions`, {
       method: 'POST',
       headers: {
-        apikey: supabaseAnonKey,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
@@ -368,7 +374,7 @@ function imageQrPage(title, message, options = {}) {
       <p class="message">${escapeHtml(message)}</p>
       ${image}${saveButton}${contact}${expiry}
     </section>
-    <footer class="footer">© B-STAR TECHNOLOGIES · Technology that moves with you.</footer>
+    <footer class="footer">©️ B-STAR TECHNOLOGIES · Technology that moves with you.</footer>
   </main>
   ${options.imageUrl ? `<script>
     document.getElementById('save-image').addEventListener('click', async function () {
@@ -409,10 +415,14 @@ async function handleImageQr(response, code, headOnly = false) {
     return;
   }
   try {
-    if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase is not configured.');
+    if (!supabaseUrl || !supabaseKey) throw new Error('Supabase is not configured.');
     const lookupResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/get_dynamic_image_qr`, {
       method: 'POST',
-      headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ p_code: code }),
       signal: AbortSignal.timeout(10000),
     });
@@ -466,14 +476,15 @@ async function handleQrRedirect(response, code) {
   }
 
   try {
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase URL or anon key is not configured.');
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase URL or key is not configured.');
     }
 
     const lookupResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/get_dynamic_qr_code`, {
       method: 'POST',
       headers: {
-        apikey: supabaseAnonKey,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ p_short_code: code }),
