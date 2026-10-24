@@ -1,9 +1,10 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const storeConfig = require('./supabase-config.js');
+const storeConfig = require('./public/supabase-config.js');
 
 const root = __dirname;
+const publicDir = path.join(root, 'public');
 const port = Number(process.env.PORT || 10000);
 const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
@@ -603,8 +604,8 @@ const server = http.createServer((request, response) => {
   }
 
   const requestedPath = pathname === '/' ? '/Index.html' : pathname;
-  const filePath = path.resolve(root, `.${requestedPath}`);
-  const relativePath = path.relative(root, filePath);
+  const filePath = path.resolve(publicDir, `.${requestedPath}`);
+  const relativePath = path.relative(publicDir, filePath);
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
     sendText(response, 403, 'Forbidden');
     return;
@@ -615,7 +616,7 @@ const server = http.createServer((request, response) => {
     return;
   }
 
-  const staticFilePath = publicFiles.has(relativePath) ? filePath : path.join(root, 'Index.html');
+  const staticFilePath = publicFiles.has(relativePath) ? filePath : path.join(publicDir, 'Index.html');
   fs.stat(staticFilePath, (statError, stats) => {
     if (statError || !stats.isFile()) {
       sendText(response, 404, 'Not found');
