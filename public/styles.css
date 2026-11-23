@@ -1268,9 +1268,12 @@ body.qr-viewer-open { overflow: hidden; }
   --tool-art-accent: #c7f24d;
   border-color: rgba(0,198,255,.48);
   background:
+    linear-gradient(rgba(199,242,77,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,198,255,.035) 1px,transparent 1px),
     radial-gradient(ellipse at 18% 18%,rgba(0,198,255,.25),transparent 42%),
     radial-gradient(ellipse at 83% 86%,rgba(255,121,92,.2),transparent 43%),
     linear-gradient(140deg,#10223b,#111725 58%,#1d1727);
+  background-size: 24px 24px,24px 24px,auto,auto,auto;
 }
 .tools-visual-stage[data-tool-art="graphic-design-studio"] .tools-visual-art {
   width: 100%;

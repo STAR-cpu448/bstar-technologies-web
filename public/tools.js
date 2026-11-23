@@ -417,7 +417,7 @@
     const studioPass = toolId === 'graphic-design-studio';
     $('.tools-paywall-shell .eyebrow').textContent = studioPass ? '3-MONTH ACCESS PASS' : 'ONE-TIME TOOL ACCESS';
     $('#tools-paywall-instructions').innerHTML = studioPass
-      ? 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer’s mobile number (not the recipient number) and transaction code below. Access is enabled after an administrator approves your payment.'
+      ? 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer’s mobile number (not the recipient number) and transaction code below. After an administrator approves your payment in tool_subscriptions, the Canva template copy link unlocks for 3 months.'
       : `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter the payer’s M-Pesa mobile number (not the recipient number) and transaction code below. Access is enabled after an administrator verifies your payment.`;
     $('#tools-paywall-form').elements.phone.value = rememberedPhone;
     $('#tools-paywall-form').querySelector('[type="submit"]').textContent = toolId === 'business-email-transformer'
@@ -655,7 +655,7 @@
     const copy = el('div', 'graphic-studio-copy');
     copy.append(
       el('h3', '', 'Your ideas, your own Canva copy.'),
-      el('p', '', 'The studio link opens a Canva template copy for your account. Edit your own version independently—it will not overwrite another customer’s work or the master design.'),
+      el('p', '', 'Pay KES 900 via M-Pesa to 0794940193. Once approved in tool_subscriptions, this unlocks 3 months of access to the Canva template link. It opens your own copy to edit independently, without overwriting anyone else’s work or the master template.'),
     );
     const templateLink = el('a', 'graphic-studio-template-link', CANVA_TEAM_STUDIO_URL);
     templateLink.href = CANVA_TEAM_STUDIO_URL;
@@ -706,7 +706,7 @@
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
     $('#tools-paywall-title').textContent = 'Unlock DIRA DESIGN STUDIO';
     $('.tools-paywall-shell .eyebrow').textContent = '3-MONTH ACCESS PASS';
-    $('#tools-paywall-instructions').innerHTML = 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer mobile number used for the transaction (not the recipient number above) and the M-Pesa confirmation code. Access is enabled after an administrator approves the payment.';
+    $('#tools-paywall-instructions').innerHTML = 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer mobile number used for the transaction (not the recipient number above) and the M-Pesa confirmation code. After approval in tool_subscriptions, the Canva template copy link unlocks for 3 months.';
     form.elements.phone.value = rememberedPhone;
     form.querySelector('[type="submit"]').textContent = 'Submit KES 900 for approval';
     document.body.classList.add('panel-open');
@@ -1832,7 +1832,7 @@
       if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
       setPaywallStatus(pendingToolId === 'graphic-design-studio'
-        ? 'KES 900 payment submitted for review. Your 3-month studio access and Canva template copy link will unlock after an administrator approves this M-Pesa transaction.'
+        ? 'KES 900 payment submitted for review. Your 3-month studio pass and Canva template copy link unlock after an administrator approves this payment in tool_subscriptions.'
         : 'Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
       if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
