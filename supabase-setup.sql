@@ -142,6 +142,7 @@ create table if not exists public.dynamic_image_qrs (
   phone text not null check (phone ~ '^[0-9]{9,15}$'),
   image_url text not null check (image_url ~ '^https://mwnburzestcooeyyuwow\.supabase\.co/storage/v1/object/public/qr-images/uploads/'),
   mpesa_code text check (mpesa_code is null or mpesa_code ~ '^[A-Z0-9]{8,20}$'),
+  amount_kes integer not null default 99 check (amount_kes = 99),
   status text not null default 'pending_payment'
     check (status in ('pending_payment', 'active', 'expired')),
   expires_at timestamptz,
@@ -149,12 +150,29 @@ create table if not exists public.dynamic_image_qrs (
   constraint dynamic_image_qrs_mpesa_code_key unique (mpesa_code)
 );
 
+alter table public.dynamic_image_qrs
+  add column if not exists amount_kes integer not null default 99;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.dynamic_image_qrs'::regclass
+      and conname = 'dynamic_image_qrs_amount_kes_check'
+  ) then
+    alter table public.dynamic_image_qrs
+      add constraint dynamic_image_qrs_amount_kes_check check (amount_kes = 99);
+  end if;
+end;
+$$;
+
 create index if not exists dynamic_image_qrs_status_created_idx
   on public.dynamic_image_qrs (status, created_at desc);
 
 alter table public.dynamic_image_qrs enable row level security;
 revoke all on public.dynamic_image_qrs from anon, authenticated;
-grant insert (code, phone, image_url, mpesa_code) on public.dynamic_image_qrs to anon;
+grant insert (code, phone, image_url, mpesa_code, amount_kes) on public.dynamic_image_qrs to anon;
 grant select, update on public.dynamic_image_qrs to authenticated;
 
 drop policy if exists "Customers can submit pending dynamic image QRs" on public.dynamic_image_qrs;
@@ -165,6 +183,7 @@ create policy "Customers can submit pending dynamic image QRs"
     status = 'pending_payment'
     and expires_at is null
     and mpesa_code is not null
+    and amount_kes = 99
     and code ~ '^IMG-[A-Z0-9]{6}$'
     and image_url ~ '^https://mwnburzestcooeyyuwow\.supabase\.co/storage/v1/object/public/qr-images/uploads/'
   );

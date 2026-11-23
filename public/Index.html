@@ -9,13 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=3.1">
+  <link rel="stylesheet" href="styles.css?v=3.3">
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   <script src="supabase-config.js?v=3" defer></script>
-  <script src="app.js?v=7" defer></script>
-  <script src="tools.js?v=10" defer></script>
+  <script src="app.js?v=8" defer></script>
+  <script src="tools.js?v=13" defer></script>
 </head>
 <body>
   <div class="site-shell">
@@ -163,15 +163,27 @@
           <span class="dynamic-qr-price">KES 99 / month <small>— Send to M-Pesa: 0794940193</small></span>
         </div>
         <div class="dynamic-qr-card">
-          <form class="dynamic-qr-form" id="dynamic-qr-form">
-            <label class="qr-dropzone" id="qr-dropzone" for="qr-image-file" tabindex="0">
-              <input id="qr-image-file" name="image" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" required>
-              <span class="qr-upload-icon" aria-hidden="true">↑</span>
-              <span class="qr-dropzone-title">Drop your image here or <span>browse files</span></span>
-              <span class="qr-dropzone-help">JPG, PNG or WebP · Max 5 MB</span>
-              <img class="qr-image-preview" id="qr-image-preview" alt="Selected image preview" hidden>
-              <span class="qr-file-name" id="qr-file-name" hidden></span>
-            </label>
+          <form class="dynamic-qr-form" id="dynamic-qr-form" novalidate>
+            <div class="qr-dropzone" id="qr-dropzone" role="group" aria-labelledby="qr-dropzone-title" aria-describedby="qr-dropzone-help qr-file-feedback" tabindex="0">
+              <input class="qr-native-file-input" id="qr-image-file" name="image" type="file" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
+              <div class="qr-dropzone-prompt" id="qr-dropzone-prompt">
+                <span class="qr-upload-icon" aria-hidden="true">↑</span>
+                <span class="qr-dropzone-title" id="qr-dropzone-title">Add the image for your QR code</span>
+                <span class="qr-dropzone-help" id="qr-dropzone-help">JPG, PNG or WebP · Maximum 5 MB</span>
+              </div>
+              <div class="qr-selected-file" id="qr-selected-file" hidden>
+                <img class="qr-image-preview" id="qr-image-preview" alt="Selected image preview">
+                <div class="qr-file-details">
+                  <span class="qr-file-name" id="qr-file-name"></span>
+                  <span class="qr-file-size" id="qr-file-size"></span>
+                </div>
+              </div>
+              <div class="qr-file-actions">
+                <button class="button button-secondary qr-file-button" id="qr-browse-file" type="button">Browse files</button>
+                <button class="button button-secondary qr-file-button" id="qr-clear-file" type="button" hidden>Clear image</button>
+              </div>
+            </div>
+            <p class="qr-file-feedback" id="qr-file-feedback" role="status" aria-live="polite" hidden></p>
             <label class="qr-phone-label" for="qr-customer-phone">Customer Phone Number</label>
             <input class="qr-phone-input" id="qr-customer-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" maxlength="20" required>
             <label class="qr-phone-label" for="qr-mpesa-code">M-Pesa Confirmation Code</label>
@@ -273,8 +285,11 @@
         <div><p class="eyebrow">ONE-TIME TOOL ACCESS</p><h2 id="tools-paywall-title">Unlock this tool</h2></div>
         <button class="icon-button" id="tools-paywall-close" type="button" aria-label="Close payment window">×</button>
       </header>
-      <p class="tools-paywall-instructions" id="tools-paywall-instructions">Send KES 10 via M-Pesa to <strong>0794940193</strong>. Enter your phone number and M-Pesa code below.</p>
-      <label>Your phone number<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" required maxlength="20"></label>
+      <p class="tools-paywall-instructions" id="tools-paywall-instructions">Send KES 10 via M-Pesa to <strong>0794940193</strong>. Enter the payer’s mobile number and M-Pesa code below.</p>
+      <label class="tools-paywall-phone-label">Payer’s M-Pesa mobile number
+        <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+254 7XX XXX XXX or 07XX XXX XXX" required maxlength="20">
+        <small class="tools-paywall-phone-note">Enter the number that sent the payment—not the DIRA PULSE recipient number, 0794940193. Kenyan 07… and 01… numbers are accepted.</small>
+      </label>
       <label>M-Pesa transaction code<input name="mpesaCode" type="text" autocomplete="off" required maxlength="20" pattern="[A-Za-z0-9]{8,20}" placeholder="e.g. QGH7ABC123"></label>
       <p class="tools-status" id="tools-paywall-status" role="status" aria-live="polite" hidden></p>
       <button class="button button-primary" type="submit">Submit payment for approval</button>

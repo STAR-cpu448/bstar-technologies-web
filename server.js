@@ -8,6 +8,15 @@ const publicDir = path.join(root, 'public');
 const port = Number(process.env.PORT || 10000);
 const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
+const qrAllowedOrigins = new Set([
+  'https://bstartechnologies-da1fe.web.app',
+  'https://bstartechnologies-da1fe.firebaseapp.com',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  'http://localhost:10000',
+  'http://127.0.0.1:10000',
+  ...(process.env.QR_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+]);
 const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -321,37 +330,68 @@ async function handleCreateImageQr(request, response) {
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase URL or key is not configured.');
     }
+    if (!payload || !/^IMG-[A-Z0-9]{6}$/.test(payload.code || '')
+      || !/^[0-9]{9,15}$/.test(payload.phone || '')
+      || !/^[A-Z0-9]{8,20}$/.test(payload.mpesaCode || '')
+      || typeof payload.imageUrl !== 'string'
+      || payload.amount !== 99) {
+      sendJson(response, 400, { error: 'Check the QR code details, phone number, M-Pesa confirmation code and KES 99 amount.' });
+      return;
+    }
+    let imageUrl;
+    try {
+      imageUrl = new URL(payload.imageUrl);
+    } catch {
+      sendJson(response, 400, { error: 'The uploaded image URL is invalid.' });
+      return;
+    }
+    const projectUrl = new URL(supabaseUrl);
+    if (imageUrl.origin !== projectUrl.origin
+      || !imageUrl.pathname.startsWith('/storage/v1/object/public/qr-images/uploads/')
+      || imageUrl.search
+      || imageUrl.hash) {
+      sendJson(response, 400, { error: 'The image URL must point to an uploaded image in the QR images bucket.' });
+      return;
+    }
     const insertResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/dynamic_image_qrs`, {
       method: 'POST',
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=representation',
+        Prefer: 'return=minimal',
       },
       body: JSON.stringify({
         code: payload.code,
-        image_url: payload.imageUrl,
+        image_url: imageUrl.toString(),
         phone: payload.phone,
         mpesa_code: payload.mpesaCode,
-        amount_kes: payload.amount || 99,
-        status: 'pending_payment',
+        amount_kes: payload.amount,
       }),
       signal: AbortSignal.timeout(10000),
     });
     if (!insertResponse.ok) {
       const errText = await insertResponse.text();
       if (insertResponse.status === 409 || /duplicate key|unique constraint/i.test(errText)) {
-        sendJson(response, 409, { error: 'That M-Pesa confirmation code has already been submitted.' });
+        if (/dynamic_image_qrs_mpesa_code_key|mpesa_code/i.test(errText)) {
+          sendJson(response, 409, {
+            kind: 'duplicate_mpesa_code',
+            error: 'That M-Pesa confirmation code has already been submitted.',
+          });
+        } else if (/dynamic_image_qrs_pkey|duplicate key.*\(code\)/i.test(errText)) {
+          sendJson(response, 409, { kind: 'code_collision', error: 'A QR code collision occurred. Please retry.' });
+        } else {
+          sendJson(response, 409, { error: 'The QR request conflicts with an existing record.' });
+        }
         return;
       }
-      throw new Error(`Supabase insert failed: ${errText}`);
+      console.error('Supabase rejected dynamic image QR insert:', errText);
+      throw new Error('Supabase rejected the dynamic image QR record.');
     }
-    const data = await insertResponse.json();
-    sendJson(response, 200, { success: true, data });
+    sendJson(response, 200, { success: true });
   } catch (error) {
     console.error('Could not create dynamic image QR record:', error);
-    sendJson(response, 503, { error: error.message || 'Could not create your dynamic image QR record right now.' });
+    sendJson(response, 503, { error: 'Could not create your dynamic image QR record right now. Please try again shortly.' });
   }
 }
 
@@ -561,6 +601,25 @@ async function handleQrRedirect(response, code) {
 
 const server = http.createServer((request, response) => {
   console.log(`[ROUTE HIT] ${request.method} ${request.url}`);
+  if (request.url === '/api/qr/create' && ['OPTIONS', 'POST'].includes(request.method)) {
+    const origin = request.headers.origin;
+    if (origin && !qrAllowedOrigins.has(origin)) {
+      sendJson(response, 403, { error: 'This website is not allowed to submit QR requests.' });
+      return;
+    }
+    if (origin) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+      response.setHeader('Vary', 'Origin');
+    }
+    if (request.method === 'OPTIONS') {
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      response.setHeader('Access-Control-Max-Age', '600');
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+  }
   if (request.method === 'POST' && request.url === '/api/email/transform') {
     void handleEmailTransform(request, response);
     return;

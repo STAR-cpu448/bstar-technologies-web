@@ -3,14 +3,17 @@ const DYNAMIC_QR_ORDER_STORAGE_KEY = 'bstar-dynamic-qr-order-v1';
 const IMAGE_BUCKET = 'product-images';
 const QR_IMAGE_BUCKET = 'qr-images';
 const QR_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const QR_CREATE_API_URL = 'https://bstar-technologies-web-azkl.onrender.com/api/qr/create';
 const QR_APPROVAL_POLL_INTERVAL = 3500;
 const QR_WHATSAPP_NUMBER = '254742562742';
 let supabaseSdkPromise;
 let storeClient;
 let qrPreviewUrl;
+let qrSelectedFile;
 let generatedQrCode;
 let qrApprovalPollCode;
 let qrApprovalPollTimer;
+let qrSubmitting = false;
 let adminQrCodes = [];
 let products = [];
 let categories = [];
@@ -78,53 +81,73 @@ function setQrStatus(message, state) {
 }
 
 function selectedQrImage() {
-  const file = document.getElementById('qr-image-file').files[0];
+  const file = qrSelectedFile;
   if (!file) return null;
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (!allowedTypes.includes(file.type)) {
-    setQrStatus('Choose a JPG, PNG or WebP image.', 'error');
-    return null;
+  return validateQrImage(file) ? file : null;
+}
+
+function validateQrImage(file) {
+  const feedback = document.getElementById('qr-file-feedback');
+  let message = '';
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    message = 'Choose a JPG, PNG or WebP image.';
+  } else if (file.size > QR_IMAGE_MAX_SIZE) {
+    message = 'Choose an image no larger than 5 MB.';
+  } else if (!file.size) {
+    message = 'The selected image is empty. Choose another file.';
   }
-  if (file.size > QR_IMAGE_MAX_SIZE) {
-    setQrStatus('Choose an image no larger than 5 MB.', 'error');
-    return null;
-  }
-  setQrStatus('', '');
-  return file;
+  feedback.textContent = message;
+  feedback.dataset.state = message ? 'error' : '';
+  feedback.hidden = !message;
+  return !message;
 }
 
 function showQrImagePreview(file) {
   if (qrPreviewUrl) URL.revokeObjectURL(qrPreviewUrl);
+  qrPreviewUrl = undefined;
   const preview = document.getElementById('qr-image-preview');
   const fileName = document.getElementById('qr-file-name');
+  const fileSize = document.getElementById('qr-file-size');
+  const selectedFile = document.getElementById('qr-selected-file');
+  const prompt = document.getElementById('qr-dropzone-prompt');
   const dropzone = document.getElementById('qr-dropzone');
+  const browseButton = document.getElementById('qr-browse-file');
+  const clearButton = document.getElementById('qr-clear-file');
   if (!file) {
     preview.removeAttribute('src');
-    preview.hidden = true;
-    fileName.hidden = true;
+    selectedFile.hidden = true;
+    prompt.hidden = false;
+    browseButton.textContent = 'Browse files';
+    clearButton.hidden = true;
     dropzone.classList.remove('has-preview');
-    return;
-  }
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > QR_IMAGE_MAX_SIZE) {
-    showQrImagePreview(null);
-    selectedQrImage();
     return;
   }
   qrPreviewUrl = URL.createObjectURL(file);
   preview.src = qrPreviewUrl;
-  preview.hidden = false;
   fileName.textContent = file.name;
-  fileName.hidden = false;
+  fileSize.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB · ${file.type.split('/')[1].toUpperCase()}`;
+  selectedFile.hidden = false;
+  prompt.hidden = true;
+  browseButton.textContent = 'Change image';
+  clearButton.hidden = false;
   dropzone.classList.add('has-preview');
-  setQrStatus('', '');
 }
 
 function setQrFile(file) {
   const fileInput = document.getElementById('qr-image-file');
-  const transfer = new DataTransfer();
-  if (file) transfer.items.add(file);
-  fileInput.files = transfer.files;
+  qrSelectedFile = file || null;
+  fileInput.value = '';
+  if (file && !validateQrImage(file)) {
+    qrSelectedFile = null;
+    showQrImagePreview(null);
+    setQrStatus('The selected file could not be used. Choose a JPG, PNG or WebP image up to 5 MB.', 'error');
+    return false;
+  }
+  document.getElementById('qr-file-feedback').hidden = true;
+  document.getElementById('qr-file-feedback').textContent = '';
   showQrImagePreview(file);
+  setQrStatus('', '');
+  return true;
 }
 
 function createQrShortCode() {
@@ -132,6 +155,16 @@ function createQrShortCode() {
   const randomValues = new Uint8Array(6);
   crypto.getRandomValues(randomValues);
   return Array.from(randomValues, (value) => alphabet[value % alphabet.length]).join('');
+}
+
+function createQrUploadId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function qrPhoneForWhatsApp(phone) {
@@ -155,7 +188,7 @@ function qrImagePath(file) {
   const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
   const nameWithoutExtension = file.name.replace(/\.[^.]*$/, '');
   const safeName = nameWithoutExtension.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^\.+/, '').slice(-100) || 'image';
-  return `uploads/${Date.now()}-${crypto.randomUUID()}-${safeName}.${extensions[file.type]}`;
+  return `uploads/${Date.now()}-${createQrUploadId()}-${safeName}.${extensions[file.type]}`;
 }
 
 function renderGeneratedQr(code) {
@@ -285,6 +318,7 @@ function restoreDynamicQrOrder() {
 
 async function createDynamicQr(event) {
   event.preventDefault();
+  if (qrSubmitting) return;
   const form = event.currentTarget;
   const file = selectedQrImage();
   const phone = form.elements.phone.value.trim();
@@ -310,11 +344,18 @@ async function createDynamicQr(event) {
   }
 
   const submit = document.getElementById('qr-generate-button');
+  qrSubmitting = true;
   submit.disabled = true;
+  submit.setAttribute('aria-busy', 'true');
+  document.getElementById('qr-browse-file').disabled = true;
+  document.getElementById('qr-clear-file').disabled = true;
+  const submitLabel = submit.textContent;
+  submit.textContent = 'Submitting…';
+  form.setAttribute('aria-busy', 'true');
   let uploadedPath;
   let recordCreated = false;
   try {
-    setQrStatus('Uploading your image…', '');
+    setQrStatus('Uploading your image…', 'loading');
     const client = await getStoreClient();
     uploadedPath = qrImagePath(file);
     const { error: uploadError } = await client.storage.from(QR_IMAGE_BUCKET).upload(uploadedPath, file, {
@@ -332,8 +373,7 @@ async function createDynamicQr(event) {
     let insertError;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       code = `IMG-${createQrShortCode()}`;
-      
-      const backendResponse = await fetch('https://bstar-technologies-web-azkl.onrender.com/api/qr/create', {
+      const backendResponse = await fetch(QR_CREATE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -348,22 +388,20 @@ async function createDynamicQr(event) {
       if (backendResponse.ok) {
         insertError = null;
         break;
-      } else {
-        const errData = await backendResponse.json().catch(() => ({}));
-        insertError = { 
-          message: errData.error || 'Server error', 
-          code: backendResponse.status === 409 ? '23505' : 'UNKNOWN' 
-        };
       }
-
-      if (insertError.code !== '23505') {
+      const errData = await backendResponse.json().catch(() => null);
+      insertError = {
+        message: errData?.error || `The QR service returned an error (${backendResponse.status}).`,
+        kind: errData?.kind || '',
+      };
+      if (backendResponse.status !== 409 || insertError.kind !== 'code_collision') {
+        if (insertError.kind === 'duplicate_mpesa_code') {
+          throw new Error('That M-Pesa confirmation code has already been submitted. Check the code or contact DIRA PULSE for help.');
+        }
         throw new Error(`Could not create your dynamic image QR record: ${insertError.message}`);
       }
-      if (/mpesa_code/i.test(insertError.message || '')) {
-        throw new Error('That M-Pesa confirmation code has already been submitted. Check the code or contact DIRA PULSE for help.');
-      }
     }
-    if (insertError) throw new Error('Could not generate a unique QR code. Please try again.');
+    if (insertError) throw new Error('Could not generate a unique QR code after several attempts. Please try again.');
 
     recordCreated = true;
     try {
@@ -374,7 +412,7 @@ async function createDynamicQr(event) {
     showQrOrder(code);
     startQrApprovalPolling(code);
     form.reset();
-    showQrImagePreview(null);
+    setQrFile(null);
     setQrStatus('Your image QR was submitted and is pending payment approval.', 'success');
   } catch (error) {
     console.error('Dynamic QR creation failed:', error);
@@ -383,7 +421,13 @@ async function createDynamicQr(event) {
       : '';
     setQrStatus(`${error.message}${orphanNotice}`, 'error');
   } finally {
+    qrSubmitting = false;
     submit.disabled = false;
+    submit.removeAttribute('aria-busy');
+    submit.textContent = submitLabel;
+    document.getElementById('qr-browse-file').disabled = false;
+    document.getElementById('qr-clear-file').disabled = false;
+    form.removeAttribute('aria-busy');
   }
 }
 
@@ -481,16 +525,20 @@ function bindDynamicQrActions() {
   const form = document.getElementById('dynamic-qr-form');
   const fileInput = document.getElementById('qr-image-file');
   const dropzone = document.getElementById('qr-dropzone');
-  
-  // 👉 Click listener to open file picker tray smoothly
-  dropzone.addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', () => showQrImagePreview(fileInput.files[0] || null));
+  document.getElementById('qr-browse-file').addEventListener('click', () => fileInput.click());
+  document.getElementById('qr-clear-file').addEventListener('click', () => setQrFile(null));
+  dropzone.addEventListener('click', (event) => {
+    if (!event.target.closest('button')) fileInput.click();
+  });
   dropzone.addEventListener('keydown', (event) => {
     if (event.target === dropzone && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       fileInput.click();
     }
+  });
+  fileInput.addEventListener('change', () => {
+    const [file] = fileInput.files;
+    if (file) setQrFile(file);
   });
   for (const eventName of ['dragenter', 'dragover']) {
     dropzone.addEventListener(eventName, (event) => {

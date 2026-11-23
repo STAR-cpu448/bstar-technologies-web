@@ -293,6 +293,11 @@
       section.append(grid);
       root.append(section);
     });
+    const designCategory = root.querySelector('.tools-category[data-tool-category="Design"]');
+    const dynamicQrSection = $('#dynamic-qr');
+    if (!designCategory) throw new Error('The Design category is missing from the Digital Tools list.');
+    if (!dynamicQrSection) throw new Error('The Dynamic Image QR section is missing from the page.');
+    designCategory.append(dynamicQrSection);
   }
 
   function filterToolCategories(category) {
@@ -311,6 +316,17 @@
     if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
     if (digits.startsWith('254') && digits.length === 12) return digits;
     if (digits.length >= 9 && digits.length <= 15) return digits;
+    return '';
+  }
+
+  function normalizeKenyanPayerPhone(value) {
+    const digits = value.replace(/\D/g, '');
+    const normalized = digits.startsWith('0') && digits.length === 10
+      ? `254${digits.slice(1)}`
+      : digits.startsWith('254') && digits.length === 12
+        ? digits
+        : '';
+    if (/^254[17]\d{8}$/.test(normalized)) return normalized;
     return '';
   }
 
@@ -353,6 +369,23 @@
   async function requestTool(toolId) {
     pendingToolId = toolId;
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
+    if (toolId === 'graphic-design-studio') {
+      studioProEnabled = false;
+      let accessCheckError;
+      if (rememberedPhone) {
+        try {
+          studioProEnabled = await activeSubscription(rememberedPhone, toolId);
+        } catch (error) {
+          accessCheckError = error;
+          console.error('DIRA DESIGN STUDIO access check failed:', error);
+        }
+      }
+      openTool(toolId, studioProEnabled);
+      if (accessCheckError) {
+        setStatus(`Studio opened in free mode. Pro access could not be checked: ${accessCheckError.message}`, 'error');
+      }
+      return;
+    }
     if (rememberedPhone && toolId !== 'business-email-transformer') {
       try {
         if (await activeSubscription(rememberedPhone, toolId)) {
@@ -366,7 +399,7 @@
     }
     $('#tools-paywall-title').textContent = `Unlock ${TITLES.get(toolId)}`;
     const price = PRICES.get(toolId) || FEE;
-    $('#tools-paywall-instructions').innerHTML = `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter your phone number and M-Pesa transaction code below. Access is enabled after an administrator verifies your payment.`;
+    $('#tools-paywall-instructions').innerHTML = `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter the payer’s M-Pesa mobile number (not the recipient number) and transaction code below. Access is enabled after an administrator verifies your payment.`;
     $('#tools-paywall-form').elements.phone.value = rememberedPhone;
     $('#tools-paywall-form').querySelector('[type="submit"]').textContent = toolId === 'business-email-transformer'
       ? 'Verify / Unlock'
@@ -376,9 +409,9 @@
     $('#tools-paywall-form').elements.phone.focus();
   }
 
-  function openTool(toolId) {
+  function openTool(toolId, hasStudioAccess = false) {
     currentTool = toolId;
-    studioProEnabled = toolId === 'graphic-design-studio';
+    studioProEnabled = toolId === 'graphic-design-studio' && hasStudioAccess;
     $('#tools-workspace-title').textContent = TITLES.get(toolId);
     $('#tools-workspace-category').textContent = GROUPS.get(toolId).toUpperCase();
     $('#tools-workspace-description').textContent = DESCRIPTIONS.get(toolId);
@@ -698,7 +731,7 @@
     const form = $('#tools-paywall-form');
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
     $('#tools-paywall-title').textContent = 'Unlock DIRA DESIGN STUDIO';
-    $('#tools-paywall-instructions').innerHTML = 'Send <strong>KES 900</strong> to <strong>0794940193</strong> via M-Pesa Send Money. Enter your phone number and M-Pesa confirmation code below. Studio access is enabled after an administrator approves the payment.';
+    $('#tools-paywall-instructions').innerHTML = 'Send <strong>KES 900</strong> to <strong>0794940193</strong> via M-Pesa Send Money. Enter the payer mobile number used for the transaction (not the recipient number above) and the M-Pesa confirmation code. Studio Pro access is enabled after an administrator approves the payment.';
     form.elements.phone.value = rememberedPhone;
     form.querySelector('[type="submit"]').textContent = 'Submit KES 900 for approval';
     document.body.classList.add('panel-open');
@@ -1768,9 +1801,14 @@
     event.preventDefault();
     if (!pendingToolId) return;
     const form = event.currentTarget;
-    const phone = normalizePhone(form.elements.phone.value);
+    const phone = normalizeKenyanPayerPhone(form.elements.phone.value);
     const code = form.elements.mpesaCode.value.trim().toUpperCase();
-    if (!phone) { setPaywallStatus('Enter a valid phone number, for example 07XX XXX XXX.', 'error'); return; }
+    if (phone === '254794940193') {
+      setPaywallStatus('0794940193 is the DIRA PULSE recipient number. Enter the payer’s own M-Pesa mobile number instead.', 'error');
+      form.elements.phone.focus();
+      return;
+    }
+    if (!phone) { setPaywallStatus('Enter a valid Kenyan mobile number, such as 07XX XXX XXX, 01XX XXX XXX, 2547… or +2541….', 'error'); form.elements.phone.focus(); return; }
     if (!/^[A-Z0-9]{8,20}$/.test(code)) { setPaywallStatus('Enter a valid M-Pesa transaction code (8–20 letters or numbers).', 'error'); return; }
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
@@ -1811,7 +1849,7 @@
       if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
       setPaywallStatus(pendingToolId === 'graphic-design-studio'
-        ? 'KES 900 payment submitted for review. DIRA DESIGN STUDIO access will unlock after an administrator approves the M-Pesa transaction; open the tool again to continue.'
+        ? 'KES 900 payment submitted for review. The studio remains available in free mode; Pro features unlock after an administrator approves this M-Pesa transaction.'
         : 'Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
       if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
@@ -1903,6 +1941,14 @@
     if (dialog.open) dialog.close();
   }
 
+  function syncToolPanelOpenState() {
+    if ($('#tools-workspace').open || $('#tools-paywall').open) {
+      document.body.classList.add('panel-open');
+    } else if (!$('#admin-dialog').open && $('#cart-drawer').hidden) {
+      document.body.classList.remove('panel-open');
+    }
+  }
+
   function init() {
     renderCards();
     addStudioFlagshipCard();
@@ -1910,6 +1956,9 @@
     $('#tools-filter-nav').addEventListener('click', (event) => {
       const filter = event.target.closest('[data-tool-category]');
       if (filter) filterToolCategories(filter.dataset.toolCategory);
+    });
+    document.querySelectorAll('a[href="#dynamic-qr"]').forEach((link) => {
+      link.addEventListener('click', () => filterToolCategories('Design'));
     });
     $('#tools').addEventListener('click', (event) => {
       const card = event.target.closest('[data-tool-id]');
@@ -1955,10 +2004,10 @@
     });
     $('#tools-workspace-close').addEventListener('click', () => closeDialog($('#tools-workspace')));
     $('#tools-paywall-close').addEventListener('click', () => closeDialog($('#tools-paywall')));
-    $('#tools-workspace').addEventListener('close', () => document.body.classList.remove('panel-open'));
-    $('#tools-paywall').addEventListener('close', () => document.body.classList.remove('panel-open'));
-    $('#tools-workspace').addEventListener('cancel', () => document.body.classList.remove('panel-open'));
-    $('#tools-paywall').addEventListener('cancel', () => document.body.classList.remove('panel-open'));
+    $('#tools-workspace').addEventListener('close', syncToolPanelOpenState);
+    $('#tools-paywall').addEventListener('close', syncToolPanelOpenState);
+    $('#tools-workspace').addEventListener('cancel', syncToolPanelOpenState);
+    $('#tools-paywall').addEventListener('cancel', syncToolPanelOpenState);
     $('#tools-workspace').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeDialog(event.currentTarget); });
     $('#tools-paywall').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeDialog(event.currentTarget); });
     $('#tool-subscriptions-panel').addEventListener('click', async (event) => {
@@ -1973,7 +2022,9 @@
       });
     }));
     document.querySelectorAll('.tools-workspace,.tools-paywall').forEach((dialog) => dialog.addEventListener('close', () => {
-      if (!$('#admin-dialog').open && $('#cart-drawer').hidden) document.body.classList.remove('panel-open');
+      if (!$('#tools-workspace').open && !$('#tools-paywall').open && !$('#admin-dialog').open && $('#cart-drawer').hidden) {
+        document.body.classList.remove('panel-open');
+      }
     }));
   }
 
