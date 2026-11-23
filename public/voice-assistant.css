@@ -148,6 +148,18 @@
   color: #ffcc8a;
 }
 
+.voice-assistant-status[data-state="notice"] {
+  color: #d7dfb4;
+}
+
+.voice-assistant-status[data-state="unsupported"] {
+  color: var(--va-muted);
+}
+
+.voice-assistant-status[data-state="listening"] {
+  color: var(--va-blue);
+}
+
 .voice-assistant-messages {
   min-height: 100px;
   padding: 14px 13px;

@@ -331,7 +331,9 @@
     const mic = $('[data-va-action="mic"]');
     mic.classList.toggle('is-listening', isActive);
     mic.setAttribute('aria-pressed', String(isActive));
-    $('[data-va-mic-label]').textContent = isActive ? 'Listening…' : 'Speak';
+    $('[data-va-mic-label]').textContent = isActive ? 'Stop listening' : 'Speak';
+    mic.setAttribute('aria-label', mic.disabled ? 'Voice input unavailable' : (isActive ? 'Stop listening' : 'Start voice input'));
+    mic.title = mic.disabled ? 'Voice input is not available in this browser.' : (isActive ? 'Stop listening' : 'Start voice input');
   }
 
   function setupRecognition() {
@@ -339,8 +341,11 @@
     const mic = $('[data-va-action="mic"]');
     if (!Recognition) {
       mic.disabled = true;
-      mic.title = 'Voice input is not supported in this browser. You can type instead.';
-      $('[data-va-mic-note]').textContent = 'Voice input is unavailable in this browser. Type below to continue.';
+      mic.title = 'Voice input is not supported in this browser.';
+      mic.setAttribute('aria-label', 'Voice input unavailable');
+      const message = "Voice mic isn't supported in this browser—type your message below.";
+      $('[data-va-mic-note]').textContent = message;
+      setStatus(message, 'unsupported');
       return;
     }
     try {
@@ -364,13 +369,36 @@
       };
       recognition.onerror = (event) => {
         submitVoiceTranscript = false;
+        updateListeningState(false);
         const messages = {
-          'not-allowed': 'Microphone permission was denied. You can type instead.',
-          'service-not-allowed': 'Voice recognition is unavailable. You can type instead.',
-          'audio-capture': 'No microphone was found. You can type instead.',
-          'no-speech': 'No speech was detected. Tap Speak to try again, or type below.',
+          'not-allowed': {
+            message: 'Microphone access is blocked—check browser permissions or type below.',
+            state: 'error',
+          },
+          'service-not-allowed': {
+            message: "Voice mic isn't supported in this browser or webview—type your message below.",
+            state: 'unsupported',
+          },
+          'audio-capture': {
+            message: 'No microphone was found—check your device or type below.',
+            state: 'error',
+          },
+          'no-speech': {
+            message: "Didn't catch that—tap Speak to try again or type below.",
+            state: 'notice',
+          },
         };
-        setStatus(messages[event.error] || 'Voice input stopped. You can type below instead.', 'error');
+        const feedback = messages[event.error] || {
+          message: "Voice input didn't start—tap Speak to retry or type below.",
+          state: 'notice',
+        };
+        if (feedback.state === 'unsupported') {
+          mic.disabled = true;
+          mic.title = 'Voice input is not available in this browser or webview.';
+          mic.setAttribute('aria-label', 'Voice input unavailable');
+          $('[data-va-mic-note]').textContent = feedback.message;
+        }
+        setStatus(feedback.message, feedback.state);
       };
       recognition.onend = () => {
         updateListeningState(false);
@@ -379,14 +407,25 @@
           submitVoiceTranscript = false;
           $('[data-va-input]').value = transcript;
           $('[data-va-form]').requestSubmit();
-        } else if ($('[data-va-status]').dataset.state === 'listening') {
-          setStatus('');
+          return;
+        }
+        submitVoiceTranscript = false;
+        const state = $('[data-va-status]').dataset.state;
+        if (state === 'error' || state === 'unsupported' || state === 'notice') return;
+        if ($('[data-va-input]').value.trim()) {
+          setStatus('Listening stopped. Review your transcript, then tap Send or type below.', 'notice');
+        } else {
+          setStatus("Didn't catch that—tap Speak to try again or type below.", 'notice');
         }
       };
     } catch (error) {
       console.warn('Speech recognition could not be initialized:', error);
       mic.disabled = true;
-      $('[data-va-mic-note]').textContent = 'Voice recognition could not start. Type below to continue.';
+      mic.title = 'Voice input could not be initialized.';
+      mic.setAttribute('aria-label', 'Voice input unavailable');
+      const message = "Voice mic isn't available in this browser or webview—type your message below.";
+      $('[data-va-mic-note]').textContent = message;
+      setStatus(message, 'unsupported');
     }
   }
 
@@ -394,19 +433,29 @@
     if (!recognition) return;
     if (listening) {
       submitVoiceTranscript = false;
-      recognition.stop();
-      setStatus('Voice input stopped.');
+      updateListeningState(false);
+      setStatus($('[data-va-input]').value.trim()
+        ? 'Listening stopped. Review your transcript, then tap Send or type below.'
+        : "Didn't catch that—tap Speak to try again or type below.", 'notice');
+      try {
+        recognition.stop();
+      } catch (error) {
+        console.warn('Speech recognition could not stop:', error);
+        setStatus("Voice input couldn't stop cleanly—tap Speak to retry or type below.", 'notice');
+      }
       return;
     }
     finalTranscript = '';
     submitVoiceTranscript = true;
     $('[data-va-input]').value = '';
+    setStatus('Starting voice input…', 'listening');
     try {
       recognition.start();
     } catch (error) {
       submitVoiceTranscript = false;
+      updateListeningState(false);
       console.warn('Speech recognition could not start:', error);
-      setStatus('Voice input could not start. Check microphone permission or type below.', 'error');
+      setStatus('Voice input could not start—check microphone permission or type below.', 'error');
     }
   }
 
