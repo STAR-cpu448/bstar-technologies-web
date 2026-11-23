@@ -364,6 +364,26 @@
     return activeSubscription(phone, 'dira-design-studio');
   }
 
+  function reserveStudioTab() {
+    // Reserve the user-initiated tab before the asynchronous access check.
+    const popup = window.open('', '_blank');
+    if (popup) popup.opener = null;
+    return popup;
+  }
+
+  function closeStudioTab(popup) {
+    if (popup && !popup.closed) popup.close();
+  }
+
+  function redirectToStudioTemplate(popup) {
+    if (popup && !popup.closed) {
+      popup.location.replace(CANVA_TEAM_STUDIO_URL);
+      setStatus('Redirecting to your Canva template...', 'success');
+      return;
+    }
+    setStatus('Your Canva template is ready. If it did not open, use the direct link below.', 'success');
+  }
+
   async function activePayment(phone, toolId, code) {
     const client = await getClient();
     const { data, error } = await client.rpc('has_active_tool_payment', {
@@ -379,6 +399,7 @@
     pendingToolId = toolId;
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
     if (toolId === 'graphic-design-studio') {
+      const studioTab = rememberedPhone ? reserveStudioTab() : null;
       studioProEnabled = false;
       studioAccessChecking = Boolean(rememberedPhone);
       openTool(toolId);
@@ -389,9 +410,11 @@
         if ($('#tools-workspace').open && currentTool === toolId) {
           studioAccessChecking = false;
           renderGraphicDesignStudio($('#tools-workspace-content'));
-          if (studioProEnabled) setStatus('DIRA DESIGN STUDIO 3-month access is active on this phone number.', 'success');
-        }
+          if (studioProEnabled) redirectToStudioTemplate(studioTab);
+          else closeStudioTab(studioTab);
+        } else closeStudioTab(studioTab);
       } catch (error) {
+        closeStudioTab(studioTab);
         console.error('DIRA DESIGN STUDIO access check failed:', error);
         if ($('#tools-workspace').open && currentTool === toolId) {
           studioAccessChecking = false;
@@ -657,7 +680,7 @@
       el('h3', '', 'Your ideas, your own Canva copy.'),
       el('p', '', 'Pay KES 900 via M-Pesa to 0794940193. Once approved in tool_subscriptions, this unlocks 3 months of access to the Canva template link. It opens your own copy to edit independently, without overwriting anyone else’s work or the master template.'),
     );
-    const templateLink = el('a', 'graphic-studio-template-link', CANVA_TEAM_STUDIO_URL);
+    const templateLink = el('a', 'graphic-studio-template-link', 'Open Canva template copy ↗');
     templateLink.href = CANVA_TEAM_STUDIO_URL;
     templateLink.target = '_blank';
     templateLink.rel = 'noopener noreferrer';
@@ -694,7 +717,6 @@
     if (payerPhone && await hasStudioAccess(payerPhone)) {
       studioProEnabled = true;
       renderGraphicDesignStudio($('#tools-workspace-content'));
-      setStatus('DIRA DESIGN STUDIO 3-month access is active on this phone number.', 'success');
       return true;
     }
     return false;
@@ -714,13 +736,21 @@
     form.elements.phone.focus();
   }
 
-  async function studioRequirePro() {
-    if (studioProEnabled) return true;
+  async function studioRequirePro(popup = null) {
+    if (studioProEnabled) {
+      redirectToStudioTemplate(popup);
+      return true;
+    }
     try {
-      if (await studioCheckPro()) return true;
+      if (await studioCheckPro()) {
+        redirectToStudioTemplate(popup);
+        return true;
+      }
+      closeStudioTab(popup);
       studioOpenProPayment();
       return false;
     } catch (error) {
+      closeStudioTab(popup);
       console.error('DIRA DESIGN STUDIO access check failed:', error);
       setStatus(`Could not check studio access: ${error.message}`, 'error');
       return false;
@@ -1667,7 +1697,9 @@
   function handleWorkspaceClick(event) {
     const studioUnlock = event.target.closest('[data-tool-action="unlock-studio"]');
     if (studioUnlock) {
-      studioRequirePro().catch((error) => {
+      const popup = localStorage.getItem(STORAGE_PHONE) ? reserveStudioTab() : null;
+      studioRequirePro(popup).catch((error) => {
+        closeStudioTab(popup);
         console.error('DIRA DESIGN STUDIO access check failed:', error);
         setStatus(`Could not check studio access: ${error.message}`, 'error');
       });
