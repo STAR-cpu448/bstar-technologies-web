@@ -3,6 +3,21 @@
 
   const script = document.currentScript;
   const configuredEndpoint = script?.dataset.endpoint || window.BSTAR_CONFIG?.voiceAssistantEndpoint || '';
+  const RENDER_IMAGE_API_BASE_URL = 'https://bstar-technologies-web-azkl.onrender.com';
+  const LOCAL_BACKEND_PORTS = new Set(['5000', '10000']);
+  const configuredImageApiBaseUrl = window.DIRA_API_BASE_URL || window.BSTAR_CONFIG?.imageApiBaseUrl;
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const isSameOriginImageBackend = (isLocalHost && LOCAL_BACKEND_PORTS.has(window.location.port))
+    || window.location.hostname === 'bstar-technologies-web-azkl.onrender.com';
+  const imageApiBaseUrl = (typeof configuredImageApiBaseUrl === 'string' && configuredImageApiBaseUrl.trim())
+    ? configuredImageApiBaseUrl.trim().replace(/\/+$/, '')
+    : isSameOriginImageBackend
+      ? window.location.origin
+      : RENDER_IMAGE_API_BASE_URL;
+  const TOOL_PHONE_STORAGE_KEY = 'bstar-tools-phone-v1';
+  const IMAGE_PRO_PRICE_KES = 700;
+  const IMAGE_PRO_MONTHLY_LIMIT = 60;
+  const IMAGE_BASE_DAILY_LIMIT = 5;
   const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
   let root;
   let recognition;
@@ -10,6 +25,10 @@
   let submitVoiceTranscript = false;
   let finalTranscript = '';
   let voiceEnabled = Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  let selectedImageTier = 'base';
+  let imageProApproved = false;
+  let imageProAccessRequest = 0;
+  let imageGenerationInProgress = false;
 
   const $ = (selector) => root.querySelector(selector);
   const normalize = (value) => value.toLowerCase().replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -24,7 +43,7 @@
         <header class="voice-assistant-header">
           <div class="voice-assistant-brand">
             <span class="voice-assistant-mark" aria-hidden="true">D</span>
-            <div><strong>DIRA Assistant</strong><small>Voice and text help</small></div>
+            <div><strong data-va-brand-title>DIRA Assistant</strong><small data-va-brand-subtitle>Voice and text help</small></div>
           </div>
           <button class="voice-assistant-icon-button" type="button" data-va-action="close" aria-label="Close assistant">×</button>
         </header>
@@ -41,6 +60,50 @@
           </div>
           <p class="voice-assistant-mic-note" data-va-mic-note>Type a message, or tap Speak to use voice input.</p>
         </form>
+        <details class="voice-assistant-image-studio" data-va-image-studio>
+          <summary>DIRA AI Image Generator</summary>
+          <div class="voice-assistant-image-content">
+            <div class="voice-assistant-image-models" role="radiogroup" aria-label="Image model">
+              <label class="voice-assistant-image-model">
+                <input type="radio" name="dira-image-tier" value="base" data-va-image-tier checked>
+                <span><strong>Base</strong><small>5 images per day per IP</small></span>
+              </label>
+              <label class="voice-assistant-image-model">
+                <input type="radio" name="dira-image-tier" value="pro" data-va-image-tier>
+                <span><strong>Pro · KES 700/month</strong><small>60 images per 30 days per approved phone</small></span>
+              </label>
+            </div>
+            <p class="voice-assistant-image-plan" data-va-image-plan>Base · up to 5 images per day per IP</p>
+            <label class="voice-assistant-image-label" for="voice-assistant-image-prompt">Describe the image</label>
+            <textarea id="voice-assistant-image-prompt" class="voice-assistant-image-prompt" data-va-image-prompt rows="3" maxlength="12000" placeholder="Describe the image you want to create"></textarea>
+            <p class="voice-assistant-image-hint">Your prompt is sent as written, with only surrounding whitespace trimmed.</p>
+            <label class="voice-assistant-image-label" for="voice-assistant-image-aspect">Aspect ratio</label>
+            <select id="voice-assistant-image-aspect" class="voice-assistant-image-aspect" data-va-image-aspect>
+              <option value="1:1">1:1 · Square</option>
+              <option value="4:5">4:5 · Portrait</option>
+              <option value="16:9">16:9 · Landscape</option>
+            </select>
+            <div class="voice-assistant-pro-gate" data-va-pro-gate hidden>
+              <strong>Pro access · KES 700/month</strong>
+              <p>Pay KES 700 per month via M-Pesa Send Money to 0794940193. Enter the payer phone and M-Pesa confirmation code below. Pro starts for one month after admin approval in tool_subscriptions.</p>
+              <label class="voice-assistant-image-label" for="voice-assistant-pro-phone">Payer phone number</label>
+              <input id="voice-assistant-pro-phone" class="voice-assistant-image-input" data-va-pro-phone type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX">
+              <label class="voice-assistant-image-label" for="voice-assistant-pro-code">M-Pesa transaction code</label>
+              <input id="voice-assistant-pro-code" class="voice-assistant-image-input" data-va-pro-code type="text" maxlength="20" autocomplete="off" placeholder="e.g. QWE1234567">
+              <div class="voice-assistant-pro-actions">
+                <button class="voice-assistant-button" data-va-action="submit-image-pro-payment" type="button">Submit Pro payment</button>
+                <button class="voice-assistant-text-button" data-va-action="check-image-pro-access" type="button">Check approval</button>
+              </div>
+            </div>
+            <button class="voice-assistant-button voice-assistant-image-generate" data-va-action="generate-image" type="button">Generate image</button>
+            <p class="voice-assistant-image-status" data-va-image-status role="status" aria-live="polite" hidden></p>
+            <figure class="voice-assistant-image-result" data-va-image-result hidden>
+              <figcaption class="voice-assistant-image-plan" data-va-image-result-plan></figcaption>
+              <img data-va-image-output alt="DIRA generated image">
+              <a class="voice-assistant-button voice-assistant-image-download" data-va-image-download download="dira-image.png">Download</a>
+            </figure>
+          </div>
+        </details>
         <div class="voice-assistant-audio-controls">
           <button class="voice-assistant-text-button" data-va-action="toggle-voice" type="button" aria-pressed="false">Voice Off</button>
           <button class="voice-assistant-text-button" data-va-action="stop-speaking" type="button" disabled>Stop speaking</button>
@@ -101,14 +164,31 @@
   }
 
   function openPanel() {
+    root.classList.remove('is-image-generator-mode');
+    $('[data-va-brand-title]').textContent = 'DIRA Assistant';
+    $('[data-va-brand-subtitle]').textContent = 'Voice and text help';
+    $('[data-va-image-studio]').open = false;
     $('#voice-assistant-panel').hidden = false;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
     $('[data-va-input]').focus();
   }
 
+  function openImageGenerator() {
+    root.classList.add('is-image-generator-mode');
+    $('[data-va-brand-title]').textContent = 'DIRA AI Image Generator';
+    $('[data-va-brand-subtitle]').textContent = 'Base · 5/day | Pro · KES 700/month';
+    $('[data-va-image-studio]').open = true;
+    $('#voice-assistant-panel').hidden = false;
+    $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
+  }
+
   function closePanel() {
     $('#voice-assistant-panel').hidden = true;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'false');
+    root.classList.remove('is-image-generator-mode');
+    $('[data-va-brand-title]').textContent = 'DIRA Assistant';
+    $('[data-va-brand-subtitle]').textContent = 'Voice and text help';
+    $('[data-va-image-studio]').open = false;
     $('#voice-assistant-launcher').focus();
   }
 
@@ -211,14 +291,14 @@
     if (/dira pulse|about dira|who are you|what do you do/.test(query)) {
       return 'DIRA PULSE TECHNOLOGIES helps people find everyday technology, devices, and accessories, with practical digital tools on this site.';
     }
+    if (/image generator|generate image|ai image|image prompt/.test(query)) {
+      return 'Open DIRA AI Image Generator from the featured tool card. Base includes 5 images per day per IP; Pro costs KES 700/month for up to 60 images per approved phone after M-Pesa payment to 0794940193 and admin approval. Your prompt is sent after trimming surrounding whitespace only.';
+    }
     if (/tool|pdf|image|invoice|calculator|email/.test(query)) {
       return 'Browse Digital Tools to find browser-based PDF, image, business, money, and everyday utilities. Select a tool card to open it; any access price and approval steps are shown in the existing flow.';
     }
     if (/dynamic qr|qr code|qr image/.test(query)) {
       return 'Open Dynamic QR to submit an image, payer phone number, and M-Pesa transaction code. The link becomes available after payment approval.';
-    }
-    if (/dira design|canva|template|poster|design studio/.test(query)) {
-      return 'DIRA DESIGN STUDIO is KES 900 for 3 months via M-Pesa to 0794940193. Submit the payer phone and transaction code; the Canva template link unlocks after approval. It opens your own copy to edit independently.';
     }
     if (/mpesa|m-pesa|pay|payment|price|cost|checkout|order/.test(query)) {
       return 'Tool prices appear on their cards. For product orders, add items to your cart and choose Continue to WhatsApp to confirm payment and delivery details with the team.';
@@ -229,7 +309,7 @@
     if (/contact|support|help/.test(query)) {
       return 'I can help you navigate Shop, Digital Tools, and Dynamic QR. You can also ask to open WhatsApp or use the site navigation.';
     }
-    return 'I can help with the DIRA PULSE site, common tool and payment steps, or navigation. Try “open the tools,” “open cart,” or ask about Dynamic QR or DIRA DESIGN STUDIO.';
+    return 'I can help with the DIRA PULSE site, common tool and payment steps, or navigation. Try “open the tools,” “open cart,” or ask about DIRA AI Image Generator.';
   }
 
   function resolveEndpoint() {
@@ -306,7 +386,7 @@
       if (answer === null) {
         try {
           answer = await requestBackendAnswer(message);
-        } catch (error) {
+        } catch {
           console.warn('Voice assistant endpoint unavailable; using built-in guidance:', error);
           setStatus('Assistant service unavailable. Using built-in guidance.', 'error');
         }
@@ -459,12 +539,238 @@
     }
   }
 
+  function setImageStatus(message, state = '') {
+    const status = $('[data-va-image-status]');
+    status.textContent = message;
+    status.dataset.state = state;
+    status.hidden = !message;
+  }
+
+  function normalizePayerPhone(value) {
+    const digits = value.replace(/\D/g, '');
+    if (/^0[17]\d{8}$/.test(digits)) return `254${digits.slice(1)}`;
+    if (/^254[17]\d{8}$/.test(digits)) return digits;
+    return '';
+  }
+
+  async function postImageApi(path, payload) {
+    const endpoint = `${imageApiBaseUrl}/api/image/${path}`;
+    let response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      const requestError = new Error(
+        `Cannot reach the DIRA image backend at ${imageApiBaseUrl}. Start the backend or set window.DIRA_API_BASE_URL to its URL, then check that it allows this page's origin.`,
+      );
+      requestError.code = 'backend_unreachable';
+      throw requestError;
+    }
+    const responseText = await response.text();
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      const responseError = new Error(
+        `The configured image backend returned HTTP ${response.status} with a non-JSON response. Check that the URL points to the DIRA API server, not a static-only server.`,
+      );
+      responseError.status = response.status;
+      responseError.code = 'invalid_backend_response';
+      throw responseError;
+    }
+    if (!response.ok) {
+      const message = typeof data.error === 'string' && data.error
+        ? data.error
+        : `The DIRA image backend returned HTTP ${response.status} without an error message.`;
+      const details = typeof data.details === 'string' && data.details ? `\nDetails: ${data.details}` : '';
+      const requestError = new Error(`${message}${details}`);
+      requestError.status = response.status;
+      requestError.code = data.code || 'image_backend_error';
+      throw requestError;
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      const responseError = new Error('The DIRA image backend returned an unexpected response. Check its server logs and API deployment.');
+      responseError.code = 'invalid_backend_response';
+      throw responseError;
+    }
+    return data;
+  }
+
+  function imagePlanText(tier = selectedImageTier) {
+    return tier === 'pro'
+      ? `Pro · KES ${IMAGE_PRO_PRICE_KES}/month · up to ${IMAGE_PRO_MONTHLY_LIMIT} images per 30 days per approved phone`
+      : `Base · up to ${IMAGE_BASE_DAILY_LIMIT} images per day per IP`;
+  }
+
+  function setImageTierUi() {
+    const isPro = selectedImageTier === 'pro';
+    $('[data-va-image-plan]').textContent = imagePlanText();
+    root.querySelectorAll('.voice-assistant-image-model').forEach((label) => {
+      label.classList.toggle('is-selected', label.querySelector('[data-va-image-tier]').checked);
+    });
+    $('[data-va-pro-gate]').hidden = !isPro || imageProApproved;
+    $('[data-va-action="generate-image"]').disabled = imageGenerationInProgress || (isPro && !imageProApproved);
+  }
+
+  async function checkImageProAccess() {
+    const requestId = ++imageProAccessRequest;
+    const enteredPhone = $('[data-va-pro-phone]').value.trim();
+    const phone = enteredPhone
+      ? normalizePayerPhone(enteredPhone)
+      : normalizePayerPhone(localStorage.getItem(TOOL_PHONE_STORAGE_KEY) || '');
+    if (!phone) {
+      imageProApproved = false;
+      setImageTierUi();
+      setImageStatus('Enter your payer phone number to check Pro approval or submit payment.', 'notice');
+      return false;
+    }
+    setImageStatus('Checking Pro approval…');
+    try {
+      const data = await postImageApi('pro/access', { phone });
+      if (requestId !== imageProAccessRequest) return false;
+      imageProApproved = data.approved === true;
+      if (imageProApproved) {
+        $('[data-va-pro-phone]').value = phone;
+        localStorage.setItem(TOOL_PHONE_STORAGE_KEY, phone);
+        setImageTierUi();
+        setImageStatus(`Pro access is active. ${IMAGE_PRO_MONTHLY_LIMIT} image generations are available per 30-day period for this approved phone.`, 'success');
+        return true;
+      }
+      setImageTierUi();
+      setImageStatus('Pro is not approved yet. Submit your KES 700/month payment, then check again after admin approval.', 'notice');
+      return false;
+    } catch (error) {
+      if (requestId === imageProAccessRequest) {
+        setImageTierUi();
+        setImageStatus(error.message, 'error');
+      }
+      return false;
+    }
+  }
+
+  async function submitImageProPayment() {
+    const phone = normalizePayerPhone($('[data-va-pro-phone]').value);
+    const code = $('[data-va-pro-code]').value.trim().toUpperCase();
+    if (!phone) {
+      setImageStatus('Enter a valid Kenyan payer number: +254…, 254…, 07… or 01….', 'error');
+      return;
+    }
+    if (phone === '254794940193') {
+      setImageStatus('Use the payer’s number, not DIRA PULSE recipient number 0794940193.', 'error');
+      return;
+    }
+    if (!/^[A-Z0-9]{8,20}$/.test(code)) {
+      setImageStatus('Enter the M-Pesa confirmation code for your KES 700 Pro payment.', 'error');
+      return;
+    }
+
+    const submitButton = $('[data-va-action="submit-image-pro-payment"]');
+    submitButton.disabled = true;
+    setImageStatus('Submitting the KES 700/month Pro payment for review…');
+    try {
+      const data = await postImageApi('pro/payment', { phone, mpesaCode: code });
+      localStorage.setItem(TOOL_PHONE_STORAGE_KEY, phone);
+      $('[data-va-pro-phone]').value = phone;
+      if (data.approved === true) {
+        imageProApproved = true;
+        setImageTierUi();
+        setImageStatus(`Pro is active at KES ${IMAGE_PRO_PRICE_KES}/month. You can generate up to ${IMAGE_PRO_MONTHLY_LIMIT} images per 30-day period for this approved phone.`, 'success');
+      } else {
+        setImageStatus(data.message || 'Payment submitted. Pro access starts for one month after admin approval.', 'notice');
+      }
+    } catch (error) {
+      setImageStatus(error.message, 'error');
+    } finally {
+      submitButton.disabled = false;
+    }
+  }
+
+  async function generateImage() {
+    const prompt = $('[data-va-image-prompt]').value.trim();
+    const aspectRatio = $('[data-va-image-aspect]').value;
+    if (!prompt) {
+      setImageStatus('Describe the image you want to generate.', 'error');
+      $('[data-va-image-prompt]').focus();
+      return;
+    }
+    if (selectedImageTier === 'pro' && !imageProApproved && !(await checkImageProAccess())) return;
+
+    const phone = selectedImageTier === 'pro'
+      ? normalizePayerPhone($('[data-va-pro-phone]').value) || normalizePayerPhone(localStorage.getItem(TOOL_PHONE_STORAGE_KEY) || '')
+      : '';
+    const payload = { prompt, modelTier: selectedImageTier, aspectRatio };
+    if (selectedImageTier === 'pro') payload.phone = phone;
+
+    imageGenerationInProgress = true;
+    const promptField = $('[data-va-image-prompt]');
+    const aspectField = $('[data-va-image-aspect]');
+    const tierFields = [...root.querySelectorAll('[data-va-image-tier]')];
+    const generateButton = $('[data-va-action="generate-image"]');
+    const result = $('[data-va-image-result]');
+    promptField.disabled = true;
+    aspectField.disabled = true;
+    tierFields.forEach((field) => { field.disabled = true; });
+    generateButton.disabled = true;
+    generateButton.textContent = 'Generating…';
+    result.hidden = true;
+    setImageStatus(`Generating with ${selectedImageTier === 'pro' ? 'Pro' : 'Base'}…`);
+
+    try {
+      const data = await postImageApi('generate', payload);
+      if (typeof data.image !== 'string' || !data.image) {
+        throw new Error('The DIRA image backend returned success without image data. Check the backend logs and OpenAI model configuration.');
+      }
+      const mimeType = data.mimeType || 'image/png';
+      const imageSource = `data:${mimeType};base64,${data.image}`;
+      const image = $('[data-va-image-output]');
+      image.src = imageSource;
+      $('[data-va-image-download]').href = imageSource;
+      $('[data-va-image-download]').download = `dira-${selectedImageTier}-${aspectRatio.replace(':', 'x')}.png`;
+      $('[data-va-image-result-plan]').textContent = imagePlanText(payload.modelTier);
+      result.hidden = false;
+      setImageStatus('Image ready. Use Download to save it.', 'success');
+    } catch (error) {
+      if (error.status === 402 && selectedImageTier === 'pro') {
+        imageProApproved = false;
+        setImageTierUi();
+      }
+      setImageStatus(error.message, 'error');
+    } finally {
+      imageGenerationInProgress = false;
+      promptField.disabled = false;
+      aspectField.disabled = false;
+      tierFields.forEach((field) => { field.disabled = false; });
+      generateButton.textContent = 'Generate image';
+      setImageTierUi();
+    }
+  }
+
+  function setupImageGenerator() {
+    const rememberedPhone = localStorage.getItem(TOOL_PHONE_STORAGE_KEY) || '';
+    $('[data-va-pro-phone]').value = rememberedPhone;
+    root.querySelectorAll('[data-va-image-tier]').forEach((field) => {
+      field.addEventListener('change', () => {
+        selectedImageTier = root.querySelector('[data-va-image-tier]:checked').value;
+        imageProApproved = false;
+        if (selectedImageTier === 'base') imageProAccessRequest += 1;
+        setImageTierUi();
+        if (selectedImageTier === 'pro') void checkImageProAccess();
+        else setImageStatus('');
+      });
+    });
+    setImageTierUi();
+  }
+
   function init() {
     if (!createWidget()) return;
     $('#voice-assistant-panel').hidden = true;
     $('[data-va-share-url]').textContent = assistantUrl();
     addMessage('assistant', 'Hi! I can answer common questions and help you navigate the DIRA PULSE website. Try “open the tools” or type a question.');
     setupRecognition();
+    setupImageGenerator();
     setVoiceEnabled(voiceEnabled);
 
     $('#voice-assistant-launcher').addEventListener('click', openPanel);
@@ -473,6 +779,9 @@
       if (action === 'close') closePanel();
       else if (action === 'mic') handleMic();
       else if (action === 'toggle-voice') setVoiceEnabled(!voiceEnabled);
+      else if (action === 'generate-image') void generateImage();
+      else if (action === 'submit-image-pro-payment') void submitImageProPayment();
+      else if (action === 'check-image-pro-access') void checkImageProAccess();
       else if (action === 'stop-speaking') {
         window.speechSynthesis?.cancel();
         $('[data-va-action="stop-speaking"]').disabled = true;
@@ -500,7 +809,7 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !$('#voice-assistant-panel').hidden) closePanel();
     });
-    window.DIRAVoiceAssistant = Object.freeze({ open: openPanel, close: closePanel });
+    window.DIRAVoiceAssistant = Object.freeze({ open: openPanel, close: closePanel, openImageGenerator });
   }
 
   if (document.readyState === 'loading') {

@@ -2,7 +2,7 @@
 
 A responsive, dark-mode tech storefront with a sticky glass navbar, searchable/category-filtered catalog, local cart drawer, WhatsApp order handoff, and Supabase-backed admin dashboard.
 
-The Digital Utilities & Tools section includes browser-based utilities, including DIRA DESIGN STUDIO. PDFs, images, and designs are processed locally in the browser; only tool-payment submissions are sent to Supabase. Standard tool access is KES 10 and requires manual M-Pesa verification by an administrator.
+The Digital Utilities & Tools section includes browser-based utilities and the DIRA AI Image Generator. Local PDF and image utilities run in the browser; AI image generation uses the Render API. Standard tool access is KES 10 and requires manual M-Pesa verification by an administrator.
 
 Tool cards and featured tools have distinct built-in SVG illustrations. Optional rendered artwork can override an illustration by adding `public/assets/tools/<tool-id>.webp` or `.png`; the storefront tries WebP first and falls back to PNG.
 
@@ -39,7 +39,23 @@ Digital Utilities access is purchased per tool. Customers submit their phone num
 
 The Business Email Transformer is available in Digital Utilities for KES 50. Customers submit their phone number and M-Pesa transaction code for manual administrator approval. After approval, the server verifies the matching active payment before returning an email with a subject, salutation, polished body, and sign-off. Its tone templates preserve the supplied details and do not call an external AI service. Run the updated `supabase-setup.sql` to enable this tool's KES 50 subscription and payment-verification RPC.
 
-DIRA DESIGN STUDIO provides an interactive canvas with text, shapes, local image uploads, layer controls, canvas-size presets, and PNG export in the browser. Access is KES 900 via M-Pesa Send Money to 0794940193; an administrator must approve the submitted phone number and transaction code before the editor opens. Re-run `supabase-setup.sql` in the Supabase SQL Editor to allow the Studio tool ID and KES 900 subscription amount before accepting requests.
+### DIRA AI Image Generator
+
+The featured Digital Tools card opens a focused image-generator view with Base and Pro tiers. The user's prompt is sent unchanged apart from trimming surrounding whitespace, with the selected 1:1, 4:5, or 16:9 aspect ratio. Base is limited to 5 generations per IP per day. Pro costs KES 700/month via M-Pesa Send Money to 0794940193, allows up to 60 generations per approved payer phone in a rolling 30-day period, and expires one month after an administrator approves the payment. Pro requests are checked by the Render API against `tool_subscriptions`; run the updated `supabase-setup.sql` before accepting payments.
+
+Configure these environment variables on the Render web service. Keep both keys in Render secrets; never add them to browser files:
+
+- `OPENAI_API_KEY` — secret OpenAI API key.
+- `SUPABASE_SERVICE_ROLE_KEY` — secret service-role key used only by the backend for Pro authorization and atomic usage limits.
+- `DIRA_IMAGE_BASE_MODEL` — defaults to `gpt-image-2.5-flare`.
+- `DIRA_IMAGE_BASE_QUALITY` — defaults to `medium`.
+- `DIRA_IMAGE_PRO_MODEL` — defaults to `gpt-image-2.5-sunburst`.
+- `DIRA_IMAGE_PRO_QUALITY` — defaults to `high`.
+- `DIRA_IMAGE_ALLOWED_ORIGINS` — optional comma-separated frontend origins; Firebase Hosting and localhost ports 5000, 5500 and 10000 are allowed by default in `server.js`.
+
+The frontend calls the Render `/api/image/*` endpoints by default. Local backends on ports 5000 and 10000 use the page's origin; static Live Server ports such as 5500 use Render. To point Live Server at a local backend, set `imageApiBaseUrl: 'http://127.0.0.1:10000'` in `public/supabase-config.js`, or set `window.DIRA_API_BASE_URL` before `voice-assistant.js` loads. For a changed Render hostname, set the same value to that public backend origin. Never put credentials in either browser setting.
+
+Image-generator errors distinguish an unreachable or disallowed backend origin, missing backend configuration, Supabase approval/usage failures, exhausted limits, and OpenAI model, permission, or quota errors. Backend responses include safe diagnostic details; server secrets and provider response bodies are not sent to the browser.
 
 The standalone 3D Parametric Modeler is available at [`/modeler.html`](./modeler.html) and is linked from the home-page hero. It builds a closed hollow lantern mesh in the browser with Three.js, previews a non-exported lit bulb, and exports binary STL in millimeters. Each Maker / Personal export costs KES 50; each Pro / Commercial export costs KES 300 and enables wall-thickness and radial-segment controls. Payment requests are recorded in `tool_subscriptions` with the corresponding modeler license `tool_id`, `amount_kes`, and M-Pesa code; an administrator must approve the payment before export. The database marks each approved payment as consumed on its one STL export. Re-run [`supabase-setup.sql`](./supabase-setup.sql) to add the modeler license IDs, amount rules, `exported_at`, and payment RPCs. The modeler loads its pinned Three.js modules from jsDelivr, so browser access to that CDN is required.
 

@@ -2,9 +2,6 @@
   'use strict';
 
   const FEE = 10;
-  const CANVA_TEAM_STUDIO_FALLBACK_URL = "https://canva.link/qhkykylccqwkigw";
-  const CANVA_TEAM_STUDIO_TEST_URL = '';
-  const CANVA_TEAM_STUDIO_URL = CANVA_TEAM_STUDIO_TEST_URL || CANVA_TEAM_STUDIO_FALLBACK_URL;
   const STORAGE_PHONE = 'bstar-tools-phone-v1';
   const CHECKLIST_KEY = 'bstar-tools-checklists-v1';
   const STUDIO_CANVAS_PRESETS = [
@@ -49,7 +46,7 @@
       ['business-email-transformer', 'Business Email Transformer', 'Turn rough notes into a polished corporate email.', '✉'],
     ] },
     { name: 'Design', tools: [
-      ['graphic-design-studio', 'DIRA DESIGN STUDIO', 'A Canva design studio with a personal template copy for independent editing.', '✦'],
+      ['dira-image-generator', 'DIRA AI IMAGE GENERATOR', 'Generate images from your exact prompt. Base includes 5 images per day per IP; Pro is KES 700/month for up to 60 images per approved phone.', '✦'],
     ] },
   ];
 
@@ -79,9 +76,10 @@
     ['cv-checklist', 'cv-checklist'],
     ['business-checklist', 'business-checklist'],
     ['business-email-transformer', 'business-email'],
-    ['graphic-design-studio', 'graphic-design-studio'],
+    ['dira-image-generator', 'dira-image-generator'],
   ]);
   const TOOL_ARTWORK = {
+    'dira-image-generator': '<g class="dira-image-generator-art"><rect x="37" y="20" width="146" height="108" rx="12" fill="#0b1422" stroke="#70d7f0" stroke-opacity=".8" stroke-width="2"/><rect x="47" y="30" width="126" height="88" rx="6" fill="#14253a"/><circle cx="146" cy="50" r="10" fill="#c9f36a"/><path d="m53 104 28-31 19 20 17-17 47 39H53z" fill="#1e6680"/><path d="m53 112 31-23 23 18 18-14 39 25H53z" fill="#42c6d9"/><path d="m84 47 5 11 12 1-9 8 3 12-11-6-10 6 2-12-9-8 12-1z" fill="#ffd46a"/><path d="M66 38h39" stroke="#f4f7fc" stroke-opacity=".72" stroke-width="3" stroke-linecap="round"/><circle cx="31" cy="43" r="4" fill="#c9f36a"/><circle cx="194" cy="94" r="5" fill="#ff8c74"/><path d="M21 75h14m-7-7v14M187 36h14m-7-7v14" stroke="#70d7f0" stroke-width="2" stroke-linecap="round"/></g>',
     'pdf-compress': '<g transform="translate(57 24)"><path class="paper-back" d="M22 8h55l24 23v75H22z"/><path class="paper-fold" d="M77 8v24h24"/><path class="paper-front" d="M9 17h55l24 23v75H9z"/><path class="paper-fold" d="M64 17v24h24"/><path class="accent-stroke" d="M25 57h47M25 68h36M25 79h27"/><path class="accent-fill" d="m52 91 8 8 17-19-5-5-12 13-4-4z"/></g><path class="accent-stroke" d="M54 132h132"/>',
     'pdf-to-image': '<g transform="translate(50 20)"><path class="paper-front" d="M22 7h58l23 23v72H22z"/><path class="paper-fold" d="M80 7v24h23"/><rect class="screen" x="34" y="46" width="56" height="41" rx="4"/><circle class="accent-fill" cx="73" cy="58" r="6"/><path class="accent-fill" d="m38 80 17-17 11 11 8-7 12 13z"/></g><path class="accent-stroke" d="M143 66h28m-8-8 8 8-8 8"/>',
     'image-to-pdf': '<g transform="translate(46 20)"><rect class="paper-back" x="23" y="13" width="60" height="78" rx="5" transform="rotate(-9 23 13)"/><rect class="screen" x="21" y="25" width="55" height="43" rx="4"/><circle class="accent-fill" cx="60" cy="37" r="6"/><path class="accent-fill" d="m24 61 17-18 10 10 8-7 14 15z"/><path class="paper-front" d="M90 37h43l18 19v55H90z"/><path class="paper-fold" d="M133 37v20h18"/><path class="accent-stroke" d="M101 76h37m-37 10h29"/>',
@@ -108,9 +106,12 @@
   };
   TITLES.set('3d-modeler-maker', '3D Modeler — Maker License');
   TITLES.set('3d-modeler-pro', '3D Modeler — Pro License');
+  TITLES.set('graphic-design-studio', 'Legacy Design Studio Access');
+  TITLES.set('dira-image-pro', 'DIRA AI Image Generator Pro');
   const PRICES = new Map([
     ['business-email-transformer', 50],
     ['graphic-design-studio', 900],
+    ['dira-image-pro', 700],
     ['3d-modeler-maker', 50],
     ['3d-modeler-pro', 300],
   ]);
@@ -137,7 +138,6 @@
   let currentPaymentCode = '';
   let cropState = null;
   let studioState = null;
-  let studioAccessChecking = false;
   let studioProEnabled = false;
   let studioUndo = [];
   let studioRedo = [];
@@ -180,7 +180,7 @@
     artwork.append(icon);
     stage.append(artwork);
 
-    if (toolId === 'graphic-design-studio') return stage;
+    if (toolId === 'dira-image-generator') return stage;
 
     const image = el('img', 'tools-visual-image');
     image.alt = '';
@@ -219,30 +219,30 @@
     });
   }
 
-  function addStudioFlagshipCard() {
+  function addDiraImageFlagshipCard() {
     const spotlight = $('.tools-spotlight');
     if (!spotlight || spotlight.parentElement.querySelector('.graphic-studio-flagship')) return;
     const card = el('button', 'graphic-studio-flagship');
     card.type = 'button';
-    card.dataset.toolId = 'graphic-design-studio';
-    card.setAttribute('aria-label', 'Open DIRA DESIGN STUDIO. KES 900 for 3 months');
+    card.dataset.toolId = 'dira-image-generator';
+    card.setAttribute('aria-label', 'Open DIRA AI Image Generator. Base 5 images per day, Pro KES 700 per month');
 
     const visualWrap = el('span', 'graphic-studio-flagship-visual');
-    const visual = makeToolVisual('graphic-design-studio');
+    const visual = makeToolVisual('dira-image-generator');
     if (visual) {
       visual.classList.add('graphic-studio-flagship-art');
       visualWrap.append(visual);
     }
     const copy = el('span', 'graphic-studio-flagship-copy');
     copy.append(
-      el('span', 'graphic-studio-flagship-eyebrow', '3-MONTH ACCESS PASS · CANVA DESIGN STUDIO'),
-      el('strong', 'graphic-studio-flagship-title', TITLES.get('graphic-design-studio')),
-      el('small', '', DESCRIPTIONS.get('graphic-design-studio')),
+      el('span', 'graphic-studio-flagship-eyebrow', 'AI IMAGE GENERATION · BASE & PRO'),
+      el('strong', 'graphic-studio-flagship-title', TITLES.get('dira-image-generator')),
+      el('small', '', DESCRIPTIONS.get('dira-image-generator')),
     );
     const action = el('span', 'graphic-studio-flagship-action');
     action.append(
-      el('span', 'graphic-studio-flagship-price', 'KES 900 for 3 months'),
-      el('span', 'graphic-studio-flagship-cta', 'Open the studio ↗'),
+      el('span', 'graphic-studio-flagship-price', 'Base · 5/day | Pro · KES 700/month'),
+      el('span', 'graphic-studio-flagship-cta', 'Generate an image ↗'),
     );
     card.append(copy, action, visualWrap);
     spotlight.parentElement.insertBefore(card, spotlight);
@@ -289,8 +289,8 @@
         const visual = makeToolVisual(id);
         const symbol = el('span', 'tools-card-icon', icon);
         symbol.setAttribute('aria-hidden', 'true');
-        const price = el('span', `tools-price-badge${id === 'graphic-design-studio' ? ' graphic-studio-price' : ''}`,
-          id === 'graphic-design-studio' ? 'KES 900 for 3 months' : `KES ${PRICES.get(id) || FEE}`);
+        const price = el('span', `tools-price-badge${id === 'dira-image-generator' ? ' graphic-studio-price' : ''}`,
+          id === 'dira-image-generator' ? 'Base · 5/day · Pro · KES 700/month' : `KES ${PRICES.get(id) || FEE}`);
         const summary = el('span', 'tools-card-description', description);
         if (visual) button.append(visual);
         button.append(symbol, el('strong', '', title), summary, price);
@@ -361,11 +361,6 @@
     return data === true;
   }
 
-  async function hasStudioAccess(phone) {
-    if (await activeSubscription(phone, 'graphic-design-studio')) return true;
-    return activeSubscription(phone, 'dira-design-studio');
-  }
-
   async function activePayment(phone, toolId, code) {
     const client = await getClient();
     const { data, error } = await client.rpc('has_active_tool_payment', {
@@ -378,30 +373,14 @@
   }
 
   async function requestTool(toolId) {
-    pendingToolId = toolId;
-    const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
-    if (toolId === 'graphic-design-studio') {
-      studioProEnabled = false;
-      studioAccessChecking = Boolean(rememberedPhone);
-      let accessCheckError;
-      try {
-        if (rememberedPhone) {
-          const payerPhone = normalizeKenyanPayerPhone(rememberedPhone) || rememberedPhone;
-          studioProEnabled = await hasStudioAccess(payerPhone);
-          if (studioProEnabled) {
-            window.location.assign(CANVA_TEAM_STUDIO_URL);
-            return;
-          }
-        }
-      } catch (error) {
-        accessCheckError = error;
-        console.error('DIRA DESIGN STUDIO access check failed:', error);
-      }
-      studioAccessChecking = false;
-      openTool(toolId);
-      if (accessCheckError) setStatus(`Studio access could not be checked: ${accessCheckError.message}`, 'error');
+    if (toolId === 'graphic-design-studio' || toolId === 'dira-image-generator') {
+      const assistant = window.DIRAVoiceAssistant;
+      if (!assistant?.openImageGenerator) throw new Error('DIRA AI Image Generator is still loading. Please try again.');
+      assistant.openImageGenerator();
       return;
     }
+    pendingToolId = toolId;
+    const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
     if (rememberedPhone && toolId !== 'business-email-transformer') {
       try {
         if (await activeSubscription(rememberedPhone, toolId)) {
@@ -415,11 +394,8 @@
     }
     $('#tools-paywall-title').textContent = `Unlock ${TITLES.get(toolId)}`;
     const price = PRICES.get(toolId) || FEE;
-    const studioPass = toolId === 'graphic-design-studio';
-    $('.tools-paywall-shell .eyebrow').textContent = studioPass ? '3-MONTH ACCESS PASS' : 'ONE-TIME TOOL ACCESS';
-    $('#tools-paywall-instructions').innerHTML = studioPass
-      ? 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer’s mobile number (not the recipient number) and transaction code below. After an administrator approves your payment in tool_subscriptions, the Canva template copy link unlocks for 3 months.'
-      : `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter the payer’s M-Pesa mobile number (not the recipient number) and transaction code below. Access is enabled after an administrator verifies your payment.`;
+    $('.tools-paywall-shell .eyebrow').textContent = 'ONE-TIME TOOL ACCESS';
+    $('#tools-paywall-instructions').innerHTML = `Pay KES ${price} to <strong>0794940193</strong> via M-Pesa Send Money. Enter the payer’s M-Pesa mobile number (not the recipient number) and transaction code below. Access is enabled after an administrator verifies your payment.`;
     $('#tools-paywall-form').elements.phone.value = rememberedPhone;
     $('#tools-paywall-form').querySelector('[type="submit"]').textContent = toolId === 'business-email-transformer'
       ? 'Verify / Unlock'
@@ -429,9 +405,8 @@
     $('#tools-paywall-form').elements.phone.focus();
   }
 
-  function openTool(toolId, hasStudioAccess = false) {
+  function openTool(toolId) {
     currentTool = toolId;
-    studioProEnabled = toolId === 'graphic-design-studio' && hasStudioAccess;
     $('#tools-workspace-title').textContent = TITLES.get(toolId);
     $('#tools-workspace-category').textContent = GROUPS.get(toolId).toUpperCase();
     $('#tools-workspace-description').textContent = DESCRIPTIONS.get(toolId);
@@ -645,41 +620,6 @@
     return control;
   }
 
-  function renderGraphicDesignStudio(content) {
-    const hub = el('section', 'graphic-studio-hub');
-    const pass = el('div', 'graphic-studio-pass');
-    pass.append(
-      el('span', 'graphic-studio-pass-label', '3-MONTH ACCESS PASS'),
-      el('strong', 'graphic-studio-pass-price', 'KES 900 for 3 months'),
-      el('span', 'graphic-studio-pass-recipient', 'M-Pesa · 0794940193'),
-    );
-    const copy = el('div', 'graphic-studio-copy');
-    copy.append(
-      el('h3', '', 'Your ideas, your own Canva copy.'),
-      el('p', '', 'Pay KES 900 via M-Pesa to 0794940193. Once approved in tool_subscriptions, this unlocks 3 months of access to the Canva template link. It opens your own copy to edit independently, without overwriting anyone else’s work or the master template.'),
-    );
-    const templateLink = el('a', 'graphic-studio-template-link', 'Open Canva template copy ↗');
-    templateLink.href = CANVA_TEAM_STUDIO_URL;
-    templateLink.target = '_blank';
-    templateLink.rel = 'noopener noreferrer';
-    templateLink.setAttribute('aria-label', 'Open Canva template copy in a new tab');
-    const action = el('div', 'graphic-studio-hub-action');
-    if (studioProEnabled) {
-      action.append(templateLink);
-      action.append(el('p', 'graphic-studio-access-note', 'Your 3-month pass is active. Open your personal Canva template copy in a new tab.'));
-    } else {
-      const unlock = button(studioAccessChecking ? 'Checking studio access…' : 'Unlock 3-month access · KES 900', 'unlock-studio');
-      unlock.classList.add('graphic-studio-unlock');
-      unlock.disabled = studioAccessChecking;
-      action.append(unlock);
-      action.append(el('p', 'graphic-studio-access-note', studioAccessChecking
-        ? 'Checking for an approved 3-month pass…'
-        : 'The Canva template copy link is available once your M-Pesa payment is approved.'));
-    }
-    hub.append(pass, copy, action);
-    content.replaceChildren(hub);
-  }
-
   function studioAdd(type, values = {}) {
     studioCommit();
     const item = studioNewElement(type, values);
@@ -689,48 +629,11 @@
     studioSyncControls();
   }
 
-  async function studioCheckPro() {
-    const phone = localStorage.getItem(STORAGE_PHONE) || '';
-    const payerPhone = normalizeKenyanPayerPhone(phone) || phone;
-    if (payerPhone && await hasStudioAccess(payerPhone)) {
-      studioProEnabled = true;
-      renderGraphicDesignStudio($('#tools-workspace-content'));
-      return true;
-    }
-    return false;
-  }
-
-  function studioOpenProPayment() {
-    pendingToolId = 'graphic-design-studio';
-    const form = $('#tools-paywall-form');
-    const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
-    $('#tools-paywall-title').textContent = 'Unlock DIRA DESIGN STUDIO';
-    $('.tools-paywall-shell .eyebrow').textContent = '3-MONTH ACCESS PASS';
-    $('#tools-paywall-instructions').innerHTML = 'Pay <strong>KES 900 for 3 months</strong> via M-Pesa Send Money to <strong>0794940193</strong>. Enter the payer mobile number used for the transaction (not the recipient number above) and the M-Pesa confirmation code. After approval in tool_subscriptions, the Canva template copy link unlocks for 3 months.';
-    form.elements.phone.value = rememberedPhone;
-    form.querySelector('[type="submit"]').textContent = 'Submit KES 900 for approval';
-    document.body.classList.add('panel-open');
-    $('#tools-paywall').showModal();
-    form.elements.phone.focus();
-  }
-
   async function studioRequirePro() {
-    if (studioProEnabled) {
-      window.location.assign(CANVA_TEAM_STUDIO_URL);
-      return true;
-    }
-    try {
-      if (await studioCheckPro()) {
-        window.location.assign(CANVA_TEAM_STUDIO_URL);
-        return true;
-      }
-      studioOpenProPayment();
-      return false;
-    } catch (error) {
-      console.error('DIRA DESIGN STUDIO access check failed:', error);
-      setStatus(`Could not check studio access: ${error.message}`, 'error');
-      return false;
-    }
+    const assistant = window.DIRAVoiceAssistant;
+    if (!assistant?.openImageGenerator) throw new Error('DIRA AI Image Generator is still loading. Please try again.');
+    assistant.openImageGenerator();
+    return false;
   }
 
   async function studioExport(pro = false) {
@@ -889,7 +792,9 @@
       studioRenderScene();
       studioSyncControls();
     } else if (action === 'check-pro') {
-      if (!await studioCheckPro()) studioOpenProPayment();
+      const assistant = window.DIRAVoiceAssistant;
+      if (!assistant?.openImageGenerator) throw new Error('DIRA AI Image Generator is still loading. Please try again.');
+      assistant.openImageGenerator();
     } else if (action === 'toggle-transparent') {
       if (!await studioRequirePro()) $('[data-studio-transparent]').checked = false;
     } else if (action === 'pro-preset') {
@@ -962,8 +867,10 @@
   function renderTool(id) {
     const content = $('#tools-workspace-content');
     const fileAccept = 'image/jpeg,image/png,image/webp';
-    if (id === 'graphic-design-studio') {
-      renderGraphicDesignStudio(content);
+    if (id === 'graphic-design-studio' || id === 'dira-image-generator') {
+      const assistant = window.DIRAVoiceAssistant;
+      if (!assistant?.openImageGenerator) throw new Error('DIRA AI Image Generator is still loading. Please try again.');
+      assistant.openImageGenerator();
       return;
     }
     if (id === 'business-email-transformer') {
@@ -1674,7 +1581,7 @@
     const studioUnlock = event.target.closest('[data-tool-action="unlock-studio"]');
     if (studioUnlock) {
       studioRequirePro().catch((error) => {
-        console.error('DIRA DESIGN STUDIO access check failed:', error);
+        console.error('Tool access check failed:', error);
         setStatus(`Could not check studio access: ${error.message}`, 'error');
       });
       return;
@@ -1682,7 +1589,7 @@
     const studioAction = event.target.closest('[data-studio-action]')?.dataset.studioAction;
     if (studioAction) {
       handleStudioAction(studioAction, event).catch((error) => {
-        console.error('DIRA DESIGN STUDIO action failed:', error);
+        console.error('Tool action failed:', error);
         setStatus(error.message || 'The design action could not be completed.', 'error');
       });
       return;
@@ -1837,9 +1744,7 @@
       });
       if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
-      setPaywallStatus(pendingToolId === 'graphic-design-studio'
-        ? 'KES 900 payment submitted for review. Your 3-month studio pass and Canva template copy link unlock after an administrator approves this payment in tool_subscriptions.'
-        : 'Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
+      setPaywallStatus('Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
       if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
       console.error('Could not submit tool payment:', error);
@@ -1857,7 +1762,7 @@
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
     if (sessionError) throw new Error(sessionError.message);
     if (sessionData.session?.user?.app_metadata?.role !== 'admin') throw new Error('Administrator access required.');
-    let fields = ['id', 'phone', 'tool_id', 'mpesa_code', 'amount_kes', 'exported_at', 'status', 'created_at'];
+    let fields = ['id', 'phone', 'tool_id', 'mpesa_code', 'amount_kes', 'exported_at', 'expires_at', 'status', 'created_at'];
     let data;
     let error;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1865,7 +1770,7 @@
         .select(fields.join(','))
         .order('created_at', { ascending: false }));
       if (!error) break;
-      const missingField = ['amount_kes', 'exported_at'].find((field) => fields.includes(field) && isMissingColumn(error, field));
+      const missingField = ['amount_kes', 'exported_at', 'expires_at'].find((field) => fields.includes(field) && isMissingColumn(error, field));
       if (!missingField) break;
       fields = fields.filter((field) => field !== missingField);
     }
@@ -1880,12 +1785,17 @@
       const date = new Date(subscription.created_at);
       const dateText = Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
       const amount = subscription.amount_kes ?? PRICES.get(subscription.tool_id) ?? FEE;
-      const paymentState = subscription.exported_at ? 'export used' : subscription.status;
-      const meta = el('small', '', `${subscription.phone} · KES ${amount} · M-Pesa: ${subscription.mpesa_code} · ${paymentState} · ${dateText}`);
+      const expiresAt = subscription.expires_at ? new Date(subscription.expires_at) : null;
+      const isExpired = subscription.tool_id === 'dira-image-pro' && expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date();
+      const expiryText = expiresAt && !Number.isNaN(expiresAt.getTime()) ? ` · Expires ${expiresAt.toLocaleString()}` : '';
+      const paymentState = subscription.exported_at ? 'export used' : (isExpired ? 'expired' : subscription.status);
+      const meta = el('small', '', `${subscription.phone} · KES ${amount} · M-Pesa: ${subscription.mpesa_code} · ${paymentState}${expiryText} · ${dateText}`);
       details.append(title, meta);
       const actions = el('div', 'tools-admin-actions');
       if (subscription.exported_at) {
         actions.append(el('span', 'tools-check-progress', 'Export Used'));
+      } else if (isExpired) {
+        actions.append(el('span', 'tools-check-progress', 'Expired'));
       } else if (subscription.status !== 'active') {
         const enable = button('Enable Service', 'enable-subscription');
         enable.className = 'admin-action activate';
@@ -1940,7 +1850,7 @@
 
   function init() {
     renderCards();
-    addStudioFlagshipCard();
+    addDiraImageFlagshipCard();
     enhanceToolVisuals();
     $('#tools-filter-nav').addEventListener('click', (event) => {
       const filter = event.target.closest('[data-tool-category]');

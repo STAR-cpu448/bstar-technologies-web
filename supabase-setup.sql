@@ -233,6 +233,7 @@ from legacy_qrs
 where phone ~ '^[0-9]{9,15}$'
 on conflict (code) do nothing;
 
+-- Base image generation is usage-limited without a subscription; only Pro uses the KES 700 monthly subscription.
 create table if not exists public.tool_subscriptions (
   id uuid primary key default gen_random_uuid(),
   phone text not null check (phone ~ '^[0-9]{9,15}$'),
@@ -242,6 +243,7 @@ create table if not exists public.tool_subscriptions (
     'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
     'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
     'cv-checklist', 'business-checklist', 'business-email-transformer', 'graphic-design-studio',
+    'dira-image-pro',
     '3d-modeler-maker', '3d-modeler-pro'
   )),
   mpesa_code text not null check (mpesa_code ~ '^[A-Z0-9]{8,20}$'),
@@ -250,6 +252,7 @@ create table if not exists public.tool_subscriptions (
     check (status in ('pending_approval', 'active', 'rejected')),
   created_at timestamptz not null default now(),
   exported_at timestamptz,
+  expires_at timestamptz,
   unique (mpesa_code)
 );
 
@@ -257,6 +260,8 @@ alter table public.tool_subscriptions
   add column if not exists amount_kes integer not null default 10;
 alter table public.tool_subscriptions
   add column if not exists exported_at timestamptz;
+alter table public.tool_subscriptions
+  add column if not exists expires_at timestamptz;
 
 alter table public.tool_subscriptions
   drop constraint if exists tool_subscriptions_tool_id_check,
@@ -278,15 +283,17 @@ alter table public.tool_subscriptions
     'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
     'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
     'cv-checklist', 'business-checklist', 'business-email-transformer', 'graphic-design-studio',
+    'dira-image-pro',
     '3d-modeler-maker', '3d-modeler-pro'
   )),
   add constraint tool_subscriptions_amount_kes_check check (
     (tool_id = 'business-email-transformer' and amount_kes = 50)
     or (tool_id = 'graphic-design-studio' and amount_kes = 900)
+    or (tool_id = 'dira-image-pro' and amount_kes = 700)
     or (tool_id = '3d-modeler-maker' and amount_kes = 50)
     or (tool_id = '3d-modeler-pro' and amount_kes = 300)
     or (
-      tool_id not in ('business-email-transformer', 'graphic-design-studio', '3d-modeler-maker', '3d-modeler-pro')
+      tool_id not in ('business-email-transformer', 'graphic-design-studio', 'dira-image-pro', '3d-modeler-maker', '3d-modeler-pro')
       and amount_kes = 10
     )
   );
@@ -295,6 +302,30 @@ create index if not exists tool_subscriptions_lookup_idx
   on public.tool_subscriptions (phone, tool_id, status);
 create index if not exists tool_subscriptions_created_idx
   on public.tool_subscriptions (created_at desc);
+
+create or replace function public.set_dira_image_pro_expiry()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.tool_id = 'dira-image-pro' then
+    if new.status = 'active' and (tg_op = 'INSERT' or old.status is distinct from new.status) then
+      new.expires_at := now() + interval '1 month';
+    elsif new.status <> 'active' then
+      new.expires_at := null;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.set_dira_image_pro_expiry() from public;
+drop trigger if exists set_dira_image_pro_expiry on public.tool_subscriptions;
+create trigger set_dira_image_pro_expiry
+  before insert or update on public.tool_subscriptions
+  for each row execute function public.set_dira_image_pro_expiry();
 
 alter table public.tool_subscriptions enable row level security;
 revoke all on public.tool_subscriptions from anon, authenticated;
@@ -310,9 +341,10 @@ create policy "Customers can submit pending tool payments"
     and (
       (tool_id = 'business-email-transformer' and amount_kes = 50)
       or (tool_id = 'graphic-design-studio' and amount_kes = 900)
+      or (tool_id = 'dira-image-pro' and amount_kes = 700)
       or (tool_id = '3d-modeler-maker' and amount_kes = 50)
       or (tool_id = '3d-modeler-pro' and amount_kes = 300)
-      or (tool_id not in ('business-email-transformer', 'graphic-design-studio', '3d-modeler-maker', '3d-modeler-pro') and amount_kes = 10)
+      or (tool_id not in ('business-email-transformer', 'graphic-design-studio', 'dira-image-pro', '3d-modeler-maker', '3d-modeler-pro') and amount_kes = 10)
     )
   );
 
@@ -336,11 +368,92 @@ as $$
     where subscription.phone = p_phone
       and subscription.tool_id = p_tool_id
       and subscription.status = 'active'
+      and (
+        subscription.tool_id <> 'dira-image-pro'
+        or (subscription.expires_at is not null and subscription.expires_at > now())
+      )
   );
 $$;
 
 revoke all on function public.has_active_tool_subscription(text, text) from public;
 grant execute on function public.has_active_tool_subscription(text, text) to anon, authenticated;
+
+create table if not exists public.dira_image_generation_usage (
+  id uuid primary key default gen_random_uuid(),
+  model_tier text not null check (model_tier in ('base', 'pro')),
+  usage_key text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists dira_image_generation_usage_lookup_idx
+  on public.dira_image_generation_usage (model_tier, usage_key, created_at desc);
+
+alter table public.dira_image_generation_usage enable row level security;
+revoke all on table public.dira_image_generation_usage from public, anon, authenticated;
+grant select, insert, update, delete on table public.dira_image_generation_usage to service_role;
+
+create or replace function public.reserve_dira_image_generation(
+  p_model_tier text,
+  p_usage_key text,
+  p_phone text default null
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  usage_limit integer;
+  period_start timestamptz;
+  usage_count integer;
+begin
+  if p_model_tier = 'base' then
+    if p_phone is not null or p_usage_key is null or p_usage_key !~ '^[a-f0-9]{64}$' then
+      return 'invalid';
+    end if;
+    usage_limit := 5;
+    period_start := date_trunc('day', now());
+  elsif p_model_tier = 'pro' then
+    if p_phone is null or p_usage_key is null or p_phone !~ '^254[17][0-9]{8}$'
+      or p_phone = '254794940193' or p_usage_key <> p_phone then
+      return 'invalid';
+    end if;
+    if not exists (
+      select 1
+      from public.tool_subscriptions as subscription
+      where subscription.phone = p_phone
+        and subscription.tool_id = 'dira-image-pro'
+        and subscription.amount_kes = 700
+        and subscription.status = 'active'
+        and subscription.expires_at > now()
+    ) then
+      return 'pro_not_approved';
+    end if;
+    usage_limit := 60;
+    period_start := now() - interval '30 days';
+  else
+    return 'invalid';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_model_tier || ':' || p_usage_key, 0));
+  select count(*) into usage_count
+  from public.dira_image_generation_usage as usage
+  where usage.model_tier = p_model_tier
+    and usage.usage_key = p_usage_key
+    and usage.created_at >= period_start;
+
+  if usage_count >= usage_limit then
+    return 'limit_reached';
+  end if;
+
+  insert into public.dira_image_generation_usage (model_tier, usage_key)
+  values (p_model_tier, p_usage_key);
+  return 'allowed';
+end;
+$$;
+
+revoke all on function public.reserve_dira_image_generation(text, text, text) from public, anon, authenticated;
+grant execute on function public.reserve_dira_image_generation(text, text, text) to service_role;
 
 create or replace function public.has_active_tool_payment(p_phone text, p_tool_id text, p_mpesa_code text)
 returns boolean

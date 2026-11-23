@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const storeConfig = require('./public/supabase-config.js');
 
 const root = __dirname;
@@ -13,9 +14,38 @@ const qrAllowedOrigins = new Set([
   'https://bstartechnologies-da1fe.firebaseapp.com',
   'http://localhost:5000',
   'http://127.0.0.1:5000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
   'http://localhost:10000',
   'http://127.0.0.1:10000',
   ...(process.env.QR_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+]);
+const diraImageAllowedOrigins = new Set([
+  ...qrAllowedOrigins,
+  ...(process.env.DIRA_IMAGE_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+]);
+const diraImageApiPaths = new Set([
+  '/api/image/generate',
+  '/api/image/pro/access',
+  '/api/image/pro/payment',
+]);
+const DIRA_IMAGE_PRO_TOOL_ID = 'dira-image-pro';
+const DIRA_IMAGE_PRO_PRICE_KES = 700;
+const DIRA_IMAGE_TIER_CONFIG = {
+  base: {
+    model: process.env.DIRA_IMAGE_BASE_MODEL || 'gpt-image-2.5-flare',
+    quality: process.env.DIRA_IMAGE_BASE_QUALITY || 'medium',
+  },
+  pro: {
+    model: process.env.DIRA_IMAGE_PRO_MODEL || 'gpt-image-2.5-sunburst',
+    quality: process.env.DIRA_IMAGE_PRO_QUALITY || 'high',
+  },
+};
+const DIRA_IMAGE_QUALITY_VALUES = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'auto']);
+const DIRA_IMAGE_ASPECT_SIZES = new Map([
+  ['1:1', '1024x1024'],
+  ['4:5', '1024x1280'],
+  ['16:9', '1536x864'],
 ]);
 const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html', 'voice-assistant.js', 'voice-assistant.css']);
 const contentTypes = new Map([
@@ -233,6 +263,312 @@ async function callSupabaseRpc(name, body) {
   });
   if (!result.ok) throw new Error(`Supabase payment verification returned HTTP ${result.status}.`);
   return result.json();
+}
+
+async function callDiraImageRpc(name, body) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl) throw new Error('SUPABASE_URL is missing; set it on the backend.');
+  if (!serviceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for DIRA image access and usage limits.');
+  const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!result.ok) throw new Error(`Supabase RPC ${name} returned HTTP ${result.status}.`);
+  return result.json();
+}
+
+function normalizeKenyanPayerPhone(value) {
+  const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
+  if (/^0[17]\d{8}$/.test(digits)) return `254${digits.slice(1)}`;
+  if (/^254[17]\d{8}$/.test(digits)) return digits;
+  return '';
+}
+
+async function readDiraImagePayload(request, response) {
+  try {
+    const payload = await readJson(request, 20000);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      sendJson(response, 400, { error: 'Request body must be a JSON object.' });
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return null;
+  }
+}
+
+async function handleDiraImageProAccess(request, response) {
+  const payload = await readDiraImagePayload(request, response);
+  if (!payload) return;
+  const phone = normalizeKenyanPayerPhone(payload.phone);
+  if (!phone || phone === '254794940193') {
+    sendJson(response, 400, { error: 'Enter the Kenyan payer phone number used for your Pro payment.' });
+    return;
+  }
+  try {
+    const approved = await callDiraImageRpc('has_active_tool_subscription', {
+      p_phone: phone,
+      p_tool_id: DIRA_IMAGE_PRO_TOOL_ID,
+    });
+    sendJson(response, 200, { approved: approved === true, amount_kes: DIRA_IMAGE_PRO_PRICE_KES });
+  } catch (error) {
+    console.error('DIRA Pro access check failed:', error.message);
+    sendJson(response, 503, {
+      error: 'Could not check Pro approval in Supabase.',
+      code: 'supabase_subscription_query_failed',
+      details: error.message,
+    });
+  }
+}
+
+async function handleDiraImageProPayment(request, response) {
+  const payload = await readDiraImagePayload(request, response);
+  if (!payload) return;
+  const phone = normalizeKenyanPayerPhone(payload.phone);
+  const mpesaCode = typeof payload.mpesaCode === 'string' ? payload.mpesaCode.trim().toUpperCase() : '';
+  if (!phone || phone === '254794940193') {
+    sendJson(response, 400, { error: 'Enter the Kenyan payer phone number used for your Pro payment, not recipient number 0794940193.' });
+    return;
+  }
+  if (!/^[A-Z0-9]{8,20}$/.test(mpesaCode)) {
+    sendJson(response, 400, { error: 'Enter a valid M-Pesa confirmation code for the KES 700/month Pro payment.' });
+    return;
+  }
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    const missing = [
+      !supabaseUrl ? 'SUPABASE_URL' : '',
+      !serviceRoleKey ? 'SUPABASE_SERVICE_ROLE_KEY' : '',
+    ].filter(Boolean);
+    sendJson(response, 503, {
+      error: 'Pro payment submission is not configured on the backend.',
+      code: 'supabase_configuration_missing',
+      details: `Set ${missing.join(' and ')} on the backend.`,
+    });
+    return;
+  }
+  try {
+    const approved = await callDiraImageRpc('has_active_tool_subscription', {
+      p_phone: phone,
+      p_tool_id: DIRA_IMAGE_PRO_TOOL_ID,
+    });
+    if (approved === true) {
+      sendJson(response, 200, { approved: true, amount_kes: DIRA_IMAGE_PRO_PRICE_KES });
+      return;
+    }
+    const insertResponse = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        phone,
+        tool_id: DIRA_IMAGE_PRO_TOOL_ID,
+        mpesa_code: mpesaCode,
+        amount_kes: DIRA_IMAGE_PRO_PRICE_KES,
+        status: 'pending_approval',
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!insertResponse.ok) {
+      const detail = await insertResponse.text();
+      console.error('DIRA Pro payment could not be recorded:', detail);
+      sendJson(response, insertResponse.status === 409 ? 409 : 503, {
+        error: insertResponse.status === 409
+          ? 'This M-Pesa transaction code has already been submitted.'
+          : 'Could not record the Pro payment. Run the latest supabase-setup.sql and try again.',
+        code: insertResponse.status === 409 ? 'duplicate_mpesa_code' : 'supabase_payment_insert_failed',
+        details: `Supabase returned HTTP ${insertResponse.status}.`,
+      });
+      return;
+    }
+    sendJson(response, 202, {
+      approved: false,
+      pending: true,
+      message: 'KES 700/month Pro payment submitted. Access starts for one month after admin approval.',
+    });
+  } catch (error) {
+    console.error('Could not process DIRA Pro payment:', error.message);
+    sendJson(response, 503, {
+      error: 'Could not check or submit this payment in Supabase.',
+      code: 'supabase_payment_request_failed',
+      details: error.message,
+    });
+  }
+}
+
+async function handleDiraImageGeneration(request, response) {
+  const payload = await readDiraImagePayload(request, response);
+  if (!payload) return;
+  const prompt = typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
+  const modelTier = payload.modelTier;
+  const aspectRatio = payload.aspectRatio;
+  const phone = modelTier === 'pro' ? normalizeKenyanPayerPhone(payload.phone) : '';
+  if (!prompt || prompt.length > 12000) {
+    sendJson(response, 400, { error: 'Enter an image prompt between 1 and 12,000 characters.' });
+    return;
+  }
+  if (!['base', 'pro'].includes(modelTier) || !DIRA_IMAGE_ASPECT_SIZES.has(aspectRatio)) {
+    sendJson(response, 400, { error: 'Choose a supported model tier and aspect ratio.' });
+    return;
+  }
+  if (modelTier === 'pro' && (!phone || phone === '254794940193')) {
+    sendJson(response, 402, { error: 'Pro access requires the approved payer phone number.' });
+    return;
+  }
+  const providerKey = process.env.OPENAI_API_KEY;
+  const tierConfig = DIRA_IMAGE_TIER_CONFIG[modelTier];
+  const tierEnvPrefix = modelTier.toUpperCase();
+  const configurationIssues = [];
+  if (!providerKey) configurationIssues.push('Set OPENAI_API_KEY on the backend.');
+  if (!supabaseUrl) configurationIssues.push('Set SUPABASE_URL or provide the Supabase project URL in public configuration.');
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) configurationIssues.push('Set SUPABASE_SERVICE_ROLE_KEY on the backend.');
+  if (!tierConfig.model) configurationIssues.push(`Set DIRA_IMAGE_${tierEnvPrefix}_MODEL.`);
+  if (!DIRA_IMAGE_QUALITY_VALUES.has(tierConfig.quality)) {
+    configurationIssues.push(`Set DIRA_IMAGE_${tierEnvPrefix}_QUALITY to low, medium, high, xhigh, max, or auto.`);
+  }
+  if (configurationIssues.length) {
+    sendJson(response, 503, {
+      error: 'DIRA AI Image Generator backend configuration is incomplete.',
+      code: 'backend_configuration_error',
+      details: configurationIssues.join(' '),
+    });
+    return;
+  }
+
+  const forwardedFor = request.headers['x-forwarded-for'];
+  const clientIp = typeof forwardedFor === 'string'
+    ? forwardedFor.split(',')[0].trim()
+    : request.socket.remoteAddress || 'unknown';
+  const usageKey = modelTier === 'pro'
+    ? phone
+    : crypto.createHash('sha256').update(clientIp).digest('hex');
+  let reservation;
+  try {
+    reservation = await callDiraImageRpc('reserve_dira_image_generation', {
+      p_model_tier: modelTier,
+      p_usage_key: usageKey,
+      p_phone: phone || null,
+    });
+  } catch (error) {
+    console.error('DIRA image access or usage reservation failed:', error.message);
+    sendJson(response, 503, {
+      error: 'Could not check Supabase approval or reserve image usage.',
+      code: 'supabase_usage_check_failed',
+      details: `${error.message} Confirm the latest supabase-setup.sql is installed and the backend Supabase settings are correct.`,
+    });
+    return;
+  }
+  if (reservation === 'pro_not_approved') {
+    sendJson(response, 402, {
+      error: 'Pro approval is required for DIRA AI Image Generator.',
+      code: 'pro_not_approved',
+      details: 'Submit KES 700/month via M-Pesa to 0794940193, then wait for admin approval.',
+    });
+    return;
+  }
+  if (reservation === 'limit_reached') {
+    sendJson(response, 429, {
+      error: modelTier === 'base'
+        ? 'Base reached its limit of 5 image generations today. Try again tomorrow or choose Pro.'
+        : 'Pro reached its limit of 60 image generations in the last 30 days.',
+      code: 'usage_limit_reached',
+    });
+    return;
+  }
+  if (reservation !== 'allowed') {
+    console.error('DIRA image usage reservation returned an unexpected result.');
+    sendJson(response, 503, {
+      error: 'Supabase returned an unexpected image-usage reservation result.',
+      code: 'invalid_usage_reservation',
+      details: 'Confirm the latest supabase-setup.sql is installed and reserve_dira_image_generation returns an expected status.',
+    });
+    return;
+  }
+
+  let providerResponse;
+  try {
+    providerResponse = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${providerKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: tierConfig.model,
+        prompt,
+        size: DIRA_IMAGE_ASPECT_SIZES.get(aspectRatio),
+        quality: tierConfig.quality,
+        output_format: 'png',
+        n: 1,
+      }),
+      signal: AbortSignal.timeout(180000),
+    });
+  } catch (error) {
+    console.error('OpenAI image request failed:', error.message);
+    sendJson(response, 502, {
+      error: 'The backend could not connect to OpenAI image generation.',
+      code: 'image_provider_unreachable',
+      details: 'Check the Render service network and retry the request.',
+    });
+    return;
+  }
+  if (!providerResponse.ok) {
+    console.error(`OpenAI image request returned HTTP ${providerResponse.status}.`);
+    const providerDetails = providerResponse.status === 401 || providerResponse.status === 403
+      ? 'OpenAI rejected the configured API key or its image-generation permissions. Check OPENAI_API_KEY in Render.'
+      : providerResponse.status === 404
+        ? `The configured ${modelTier} model "${tierConfig.model}" was not found or is unavailable to this account. Check DIRA_IMAGE_${tierEnvPrefix}_MODEL.`
+        : providerResponse.status === 429
+          ? 'OpenAI rate limit or usage quota was reached. Check the OpenAI account limits and billing, then retry.'
+          : `OpenAI returned HTTP ${providerResponse.status}. Check the configured model and quality settings.`;
+    sendJson(response, providerResponse.status === 429 ? 503 : 502, {
+      error: providerResponse.status === 429
+        ? 'OpenAI image generation is rate-limited or out of quota.'
+        : 'OpenAI image generation rejected the request.',
+      code: providerResponse.status === 429 ? 'image_provider_rate_limited' : 'image_provider_error',
+      details: providerDetails,
+    });
+    return;
+  }
+  let providerData;
+  try {
+    providerData = await providerResponse.json();
+  } catch (error) {
+    console.error('OpenAI image response was not valid JSON:', error.message);
+    sendJson(response, 502, {
+      error: 'OpenAI returned an invalid image response.',
+      code: 'invalid_provider_response',
+      details: 'Check the Render service logs and the configured OpenAI model.',
+    });
+    return;
+  }
+  const image = providerData.data?.[0]?.b64_json;
+  if (typeof image !== 'string' || !image) {
+    console.error('OpenAI image response did not contain generated image bytes.');
+    sendJson(response, 502, {
+      error: 'OpenAI did not return image data.',
+      code: 'provider_image_missing',
+      details: `The ${modelTier} model response did not include image bytes. Check its configured model and access.`,
+    });
+    return;
+  }
+  sendJson(response, 200, {
+    image,
+    mimeType: 'image/png',
+    modelTier,
+    aspectRatio,
+  });
 }
 
 async function handleModelerPayment(request, response) {
@@ -601,6 +937,25 @@ async function handleQrRedirect(response, code) {
 
 const server = http.createServer((request, response) => {
   console.log(`[ROUTE HIT] ${request.method} ${request.url}`);
+  if (diraImageApiPaths.has(request.url) && ['OPTIONS', 'POST'].includes(request.method)) {
+    const origin = request.headers.origin;
+    if (origin && !diraImageAllowedOrigins.has(origin)) {
+      sendJson(response, 403, { error: 'This website is not allowed to submit DIRA image requests.' });
+      return;
+    }
+    if (origin) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+      response.setHeader('Vary', 'Origin');
+    }
+    if (request.method === 'OPTIONS') {
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      response.setHeader('Access-Control-Max-Age', '600');
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+  }
   if (request.url === '/api/qr/create' && ['OPTIONS', 'POST'].includes(request.method)) {
     const origin = request.headers.origin;
     if (origin && !qrAllowedOrigins.has(origin)) {
@@ -630,6 +985,18 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === 'POST' && request.url === '/api/modeler/export') {
     void handleModelerExport(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/image/generate') {
+    void handleDiraImageGeneration(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/image/pro/access') {
+    void handleDiraImageProAccess(request, response);
+    return;
+  }
+  if (request.method === 'POST' && request.url === '/api/image/pro/payment') {
+    void handleDiraImageProPayment(request, response);
     return;
   }
   if (request.method === 'POST' && request.url === '/api/qr/create') {

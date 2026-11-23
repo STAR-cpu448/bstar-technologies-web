@@ -3,6 +3,7 @@ const bstarConfig = {
   anonKey: 'sb_publishable_ReqFerJTxI8vYQ2X7yJKcg_VGUo1J2p',
   currency: 'KES',
   whatsappNumber: '254742562742',
+  imageApiBaseUrl: '',
 };
 
 if (typeof window !== 'undefined') window.BSTAR_CONFIG = bstarConfig;

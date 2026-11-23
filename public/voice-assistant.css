@@ -64,7 +64,7 @@
   max-height: min(690px, calc(100dvh - 100px));
   min-height: 400px;
   display: grid;
-  grid-template-rows: auto auto minmax(90px, 1fr) auto auto auto;
+  grid-template-rows: auto auto minmax(90px, 1fr) auto auto auto auto;
   overflow: hidden;
   border: 1px solid var(--va-border);
   border-radius: 20px;
@@ -346,6 +346,254 @@
   font: 10px/1.4 "DM Sans", Arial, sans-serif;
 }
 
+.voice-assistant-image-studio {
+  min-width: 0;
+  border-top: 1px solid var(--va-border);
+  color: var(--va-muted);
+  font-size: 10px;
+}
+
+.voice-assistant-image-studio summary {
+  padding: 10px 15px;
+  color: #d4dfeb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
+  min-height: min(680px, calc(100dvh - 24px));
+  max-height: min(680px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-status,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-messages,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-form,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-audio-controls,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-shortcuts,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-launcher,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-image-studio summary {
+  display: none;
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-image-studio {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  grid-row: 2;
+  border-top: 0;
+}
+
+.voice-assistant-image-content {
+  max-height: min(420px, calc(100dvh - 250px));
+  padding: 0 13px 13px;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-image-content {
+  min-height: 0;
+  max-height: none;
+  flex: 1;
+  padding: 12px 14px 14px;
+}
+
+.voice-assistant-image-models {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 7px;
+}
+
+.voice-assistant-image-model {
+  min-width: 0;
+  padding: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid var(--va-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.voice-assistant-image-model.is-selected {
+  border-color: rgba(201, 243, 106, 0.55);
+  background: rgba(201, 243, 106, 0.08);
+}
+
+.voice-assistant-image-model input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 2px 0 0;
+  accent-color: var(--va-accent);
+}
+
+.voice-assistant-image-model span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.voice-assistant-image-model strong {
+  color: var(--va-text);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.voice-assistant-image-model small,
+.voice-assistant-image-hint {
+  color: var(--va-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.voice-assistant-image-plan {
+  margin: 0;
+  color: var(--va-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.voice-assistant-image-label {
+  margin-top: 2px;
+  color: #d4dfeb;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.voice-assistant-image-prompt,
+.voice-assistant-image-aspect,
+.voice-assistant-image-input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--va-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--va-text);
+  font: 11px/1.45 "DM Sans", Arial, sans-serif;
+}
+
+.voice-assistant-image-prompt {
+  min-height: 70px;
+  max-height: 140px;
+  resize: vertical;
+}
+
+.voice-assistant-image-prompt::placeholder,
+.voice-assistant-image-input::placeholder {
+  color: #8794a7;
+}
+
+.voice-assistant-image-aspect option {
+  background: var(--va-panel);
+  color: var(--va-text);
+}
+
+.voice-assistant-image-hint {
+  margin: -4px 0 0;
+}
+
+.voice-assistant-pro-gate {
+  padding: 10px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(255, 204, 138, 0.32);
+  border-radius: 10px;
+  background: rgba(255, 204, 138, 0.055);
+}
+
+.voice-assistant-pro-gate[hidden],
+.voice-assistant-image-status[hidden],
+.voice-assistant-image-result[hidden] {
+  display: none;
+}
+
+.voice-assistant-pro-gate > strong {
+  color: #ffcc8a;
+  font-size: 11px;
+}
+
+.voice-assistant-pro-gate p {
+  margin: 0;
+  color: #d3dae5;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.voice-assistant-pro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.voice-assistant-image-generate {
+  min-height: 38px;
+  border-color: rgba(201, 243, 106, 0.42);
+  background: rgba(201, 243, 106, 0.12);
+  color: var(--va-accent);
+}
+
+.voice-assistant-image-generate:disabled {
+  opacity: 0.5;
+}
+
+.voice-assistant-image-status {
+  margin: 0;
+  color: var(--va-blue);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.voice-assistant-image-status[data-state="error"] {
+  color: #ffcc8a;
+}
+
+.voice-assistant-image-status[data-state="notice"] {
+  color: #d7dfb4;
+}
+
+.voice-assistant-image-status[data-state="success"] {
+  color: var(--va-accent);
+}
+
+.voice-assistant-image-result {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.voice-assistant-image-result img {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  border: 1px solid var(--va-border);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.2);
+  object-fit: contain;
+}
+
+.voice-assistant-image-download {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--va-accent);
+  text-decoration: none;
+}
+
 .voice-assistant-copy {
   min-height: 30px;
 }
@@ -374,6 +622,11 @@
     max-height: min(680px, calc(100dvh - 88px));
     min-height: min(410px, calc(100dvh - 100px));
     border-radius: 17px;
+  }
+
+  .voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
+    max-height: calc(100dvh - 24px);
+    min-height: min(680px, calc(100dvh - 24px));
   }
 
   .voice-assistant-launcher {
