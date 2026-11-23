@@ -2,7 +2,9 @@
   'use strict';
 
   const FEE = 10;
-  const CANVA_TEAM_STUDIO_URL = "https://canva.link/qhkykylccqwkigw";
+  const CANVA_TEAM_STUDIO_FALLBACK_URL = "https://canva.link/qhkykylccqwkigw";
+  const CANVA_TEAM_STUDIO_TEST_URL = '';
+  const CANVA_TEAM_STUDIO_URL = CANVA_TEAM_STUDIO_TEST_URL || CANVA_TEAM_STUDIO_FALLBACK_URL;
   const STORAGE_PHONE = 'bstar-tools-phone-v1';
   const CHECKLIST_KEY = 'bstar-tools-checklists-v1';
   const STUDIO_CANVAS_PRESETS = [
