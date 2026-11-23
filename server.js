@@ -99,7 +99,7 @@ function buildCorporateEmail({ roughText, tone, audience }) {
     subject: `Regarding: ${subjectSeed}`,
     salutation: `Dear ${audienceSalutation},`,
     body: `${lead}\n\n${notes.join('\n')}\n\n${close}`,
-    signoff: 'Kind regards,\nB-STAR TECHNOLOGIES',
+    signoff: 'Kind regards,\nDIRA PULSE TECHNOLOGIES',
   };
 }
 
@@ -141,7 +141,7 @@ async function handleEmailTransform(request, response) {
     return;
   }
   if (!supabaseUrl || !supabaseKey) {
-    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
+    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact DIRA PULSE TECHNOLOGIES.' });
     return;
   }
 
@@ -205,7 +205,7 @@ async function readModelerPayment(request, response) {
     return null;
   }
   if (!supabaseUrl || !supabaseKey) {
-    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact B-STAR TECHNOLOGIES.' });
+    sendJson(response, 503, { error: 'Payment verification is not configured. Please contact DIRA PULSE TECHNOLOGIES.' });
     return null;
   }
   return { ...tier, phone, mpesaCode };
@@ -250,7 +250,7 @@ async function handleModelerPayment(request, response) {
       return;
     }
     if (state === 'rejected') {
-      sendJson(response, 402, { error: 'This payment request was not approved. Contact B-STAR TECHNOLOGIES for help.' });
+      sendJson(response, 402, { error: 'This payment request was not approved. Contact DIRA PULSE TECHNOLOGIES for help.' });
       return;
     }
 
@@ -379,13 +379,13 @@ function escapeHtml(value) {
 
 function imageQrPage(title, message, options = {}) {
   const image = options.imageUrl
-    ? `<img class="qr-image" src="${escapeHtml(options.imageUrl)}" data-download-name="${escapeHtml(options.downloadName || 'shared-image.jpg')}" alt="Image shared through B-STAR Dynamic Image QR">`
+    ? `<img class="qr-image" src="${escapeHtml(options.imageUrl)}" data-download-name="${escapeHtml(options.downloadName || 'shared-image.jpg')}" alt="Image shared through DIRA PULSE Dynamic Image QR">`
     : '';
   const saveButton = options.imageUrl
     ? '<button class="save-image" id="save-image" type="button">Save Image</button>'
     : '';
   const contact = options.contact
-    ? `<a class="contact-link" href="${escapeHtml(options.contact)}">Contact B-STAR on WhatsApp</a>`
+    ? `<a class="contact-link" href="${escapeHtml(options.contact)}">Contact DIRA PULSE on WhatsApp</a>`
     : '';
   const expiry = options.expiresAt
     ? `<p class="expiry">Active until ${escapeHtml(new Date(options.expiresAt).toLocaleDateString('en-KE'))}</p>`
@@ -396,7 +396,7 @@ function imageQrPage(title, message, options = {}) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b12">
-  <title>${escapeHtml(title)} — B-STAR TECHNOLOGIES</title>
+  <title>${escapeHtml(title)} — DIRA PULSE TECHNOLOGIES</title>
   <style>
     :root{color-scheme:dark;--bg:#080b12;--panel:#111620;--line:rgba(255,255,255,.1);--text:#f5f7fb;--muted:#a0a6b3;--lime:#c7f24d}
     *{box-sizing:border-box}body{min-height:100vh;margin:0;padding:24px;background:radial-gradient(ellipse at 50% 0,rgba(199,242,77,.08),transparent 48%),var(--bg);color:var(--text);font:15px/1.6 "DM Sans",system-ui,sans-serif}
@@ -413,7 +413,7 @@ function imageQrPage(title, message, options = {}) {
   <main class="page">
     <a class="brand" href="/">
       <span class="mark" aria-hidden="true">B</span>
-      <span>B-STAR<small>TECHNOLOGIES</small></span>
+      <span>DIRA PULSE<small>TECHNOLOGIES</small></span>
     </a>
     <section class="card">
       <p class="eyebrow">DYNAMIC IMAGE QR</p>
@@ -421,7 +421,7 @@ function imageQrPage(title, message, options = {}) {
       <p class="message">${escapeHtml(message)}</p>
       ${image}${saveButton}${contact}${expiry}
     </section>
-    <footer class="footer">©️ B-STAR TECHNOLOGIES · Technology that moves with you.</footer>
+    <footer class="footer">©️ DIRA PULSE TECHNOLOGIES · Technology that moves with you.</footer>
   </main>
   ${options.imageUrl ? `<script>
     document.getElementById('save-image').addEventListener('click', async function () {
@@ -458,7 +458,7 @@ function redirect(response, targetUrl) {
 
 async function handleImageQr(response, code, headOnly = false) {
   if (!/^IMG-[A-Z0-9]{6}$/.test(code)) {
-    sendHtml(response, 404, imageQrPage('QR code not found', 'This B-STAR Dynamic Image QR could not be found.'), headOnly);
+    sendHtml(response, 404, imageQrPage('QR code not found', 'This DIRA PULSE Dynamic Image QR could not be found.'), headOnly);
     return;
   }
   try {
@@ -477,7 +477,7 @@ async function handleImageQr(response, code, headOnly = false) {
     const result = await lookupResponse.json();
     const record = Array.isArray(result) ? result[0] : result;
     if (!record) {
-      sendHtml(response, 404, imageQrPage('QR code not found', 'This B-STAR Dynamic Image QR could not be found.'), headOnly);
+      sendHtml(response, 404, imageQrPage('QR code not found', 'This DIRA PULSE Dynamic Image QR could not be found.'), headOnly);
       return;
     }
 
@@ -488,7 +488,7 @@ async function handleImageQr(response, code, headOnly = false) {
     }
 
     if (record.status === 'pending_payment') {
-      const contact = 'https://wa.me/254794940193?text=Hello%20B-STAR%2C%20please%20help%20activate%20my%20Dynamic%20Image%20QR%20' + encodeURIComponent(code);
+      const contact = 'https://wa.me/254794940193?text=Hello%20DIRA%20PULSE%2C%20please%20help%20activate%20my%20Dynamic%20Image%20QR%20' + encodeURIComponent(code);
       sendHtml(response, 200, imageQrPage(
         'Awaiting Payment Confirmation',
         'This Dynamic Image QR is awaiting payment confirmation (KES 99 to 0794940193). Contact admin to activate.',
@@ -499,12 +499,12 @@ async function handleImageQr(response, code, headOnly = false) {
 
     const expiry = Date.parse(record.expires_at || '');
     if (record.status !== 'active' || !Number.isFinite(expiry) || expiry <= Date.now()) {
-      sendHtml(response, 200, imageQrPage('Image QR Not Active', 'This Dynamic Image QR is expired or inactive. Contact B-STAR for assistance.', {
-        contact: 'https://wa.me/254794940193?text=Hello%20B-STAR%2C%20please%20help%20with%20Dynamic%20Image%20QR%20' + encodeURIComponent(code),
+      sendHtml(response, 200, imageQrPage('Image QR Not Active', 'This Dynamic Image QR is expired or inactive. Contact DIRA PULSE for assistance.', {
+        contact: 'https://wa.me/254794940193?text=Hello%20DIRA%20PULSE%2C%20please%20help%20with%20Dynamic%20Image%20QR%20' + encodeURIComponent(code),
       }), headOnly);
       return;
     }
-    sendHtml(response, 200, imageQrPage('Your shared image', 'This image was shared with B-STAR Dynamic Image QR.', {
+    sendHtml(response, 200, imageQrPage('Your shared image', 'This image was shared with DIRA PULSE Dynamic Image QR.', {
       imageUrl: imageUrl.href,
       downloadName: `${code}.${imageUrl.pathname.match(/\.(jpe?g|png|webp)$/i)?.[1] || 'jpg'}`,
       expiresAt: record.expires_at,
@@ -549,7 +549,7 @@ async function handleQrRedirect(response, code) {
     }
 
     const cleanPhone = '254794940193';
-    const message = `Hello B-STAR, scanned QR ${code}`;
+    const message = `Hello DIRA PULSE, scanned QR ${code}`;
     redirect(response, `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
   } catch (error) {
     console.error(`Error looking up QR code ${code}:`, error);
@@ -588,6 +588,15 @@ const server = http.createServer((request, response) => {
     pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   } catch {
     sendText(response, 400, 'Invalid request path');
+    return;
+  }
+
+  if (pathname === '/modeller.html') {
+    response.writeHead(301, {
+      Location: '/modeler.html',
+      'Cache-Control': 'public, max-age=3600',
+    });
+    response.end();
     return;
   }
 
@@ -644,10 +653,10 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`B-STAR TECHNOLOGIES is available on port ${port}`);
+  console.log(`DIRA PULSE TECHNOLOGIES is available on port ${port}`);
 });
 
 server.on('error', (error) => {
-  console.error('Unable to start the B-STAR web server:', error);
+  console.error('Unable to start the DIRA PULSE web server:', error);
   process.exitCode = 1;
 });

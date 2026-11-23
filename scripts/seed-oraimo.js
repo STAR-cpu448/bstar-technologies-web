@@ -416,7 +416,7 @@ async function main() {
   const rows = products.map((product) => {
     const { referencePrice, image, category, ...item } = product;
     const price = referencePrice - DISCOUNT_KES;
-    const description = `${item.description}\n\nB-STAR reference price: KES ${referencePrice.toLocaleString('en-KE')}. Promotional price: KES ${price.toLocaleString('en-KE')} (KES ${DISCOUNT_KES} off).`;
+    const description = `${item.description}\n\nDIRA PULSE reference price: KES ${referencePrice.toLocaleString('en-KE')}. Promotional price: KES ${price.toLocaleString('en-KE')} (KES ${DISCOUNT_KES} off).`;
     const categoryId = categoryIds.get(category);
     if (!categoryId) throw new Error(`Supabase did not return the seeded category ${category}`);
 

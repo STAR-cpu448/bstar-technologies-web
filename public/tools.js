@@ -446,7 +446,7 @@
     }
     if (id === 'invoice-maker') {
       const kind = select('kind', [['invoice', 'Invoice'], ['receipt', 'Receipt']]);
-      const business = input('text', 'business', { required: true, value: 'B-STAR TECHNOLOGIES' });
+      const business = input('text', 'business', { required: true, value: 'DIRA PULSE TECHNOLOGIES' });
       const clientName = input('text', 'customer', { required: true });
       const vat = input('checkbox', 'vat', { checked: true });
       const lines = el('div', 'tools-line-items');
@@ -459,7 +459,7 @@
     }
     if (id === 'mpesa-sheet') {
       content.append(formGrid(
-        field('Business / shop name', input('text', 'business', { value: 'B-STAR TECHNOLOGIES', required: true })),
+        field('Business / shop name', input('text', 'business', { value: 'DIRA PULSE TECHNOLOGIES', required: true })),
         field('Payment type', select('kind', [['paybill', 'Paybill'], ['till', 'Buy Goods Till']])),
         field('Paybill / Till number', input('text', 'number', { required: true })),
         field('Account name / number', input('text', 'account')),
@@ -1202,7 +1202,7 @@
         actions.append(el('span', 'tools-check-progress', 'Active'));
       }
       const notify = el('a', '', 'Notify via WhatsApp');
-      notify.href = `https://wa.me/${subscription.phone}?text=${encodeURIComponent(`Hi, your ${TITLES.get(subscription.tool_id) || 'Digital Utilities'} service is active. Thank you for choosing B-STAR TECHNOLOGIES.`)}`;
+      notify.href = `https://wa.me/${subscription.phone}?text=${encodeURIComponent(`Hi, your ${TITLES.get(subscription.tool_id) || 'Digital Utilities'} service is active. Thank you for choosing DIRA PULSE TECHNOLOGIES.`)}`;
       notify.target = '_blank';
       notify.rel = 'noopener noreferrer';
       actions.append(notify);

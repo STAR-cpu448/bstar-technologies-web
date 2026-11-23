@@ -1,4 +1,4 @@
-# B-STAR TECHNOLOGIES
+# DIRA PULSE TECHNOLOGIES
 
 A responsive, dark-mode tech storefront with a sticky glass navbar, searchable/category-filtered catalog, local cart drawer, WhatsApp order handoff, and Supabase-backed admin dashboard.
 

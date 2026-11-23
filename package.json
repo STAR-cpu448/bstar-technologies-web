@@ -1,8 +1,8 @@
 {
-  "name": "bstar-technologies-storefront",
+  "name": "dira-pulse-technologies-storefront",
   "version": "1.0.0",
   "private": true,
-  "description": "B-STAR TECHNOLOGIES storefront backed by Supabase",
+  "description": "DIRA PULSE TECHNOLOGIES storefront backed by Supabase",
   "scripts": {
     "start": "node server.js",
     "seed:oraimo": "node scripts/seed-oraimo.js",

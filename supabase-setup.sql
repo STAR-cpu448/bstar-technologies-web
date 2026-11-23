@@ -1,4 +1,4 @@
--- B-STAR TECHNOLOGIES commerce schema
+-- DIRA PULSE TECHNOLOGIES commerce schema
 -- Run in the Supabase SQL Editor. Admins must receive app_metadata.role = 'admin'
 -- through a trusted Supabase dashboard/Admin API operation.
 

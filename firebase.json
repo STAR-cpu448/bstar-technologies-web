@@ -1,0 +1,23 @@
+{
+  "hosting": {
+    "public": "public",
+    "redirects": [
+      { "source": "/modeller.html", "destination": "/modeler.html", "type": 301 }
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      { "source": "/api/**", "function": "api" },
+      { "source": "/qr/**", "function": "api" },
+      { "source": "/r/**", "function": "api" },
+      { "source": "/img-qr/**", "function": "api" },
+      { "source": "/", "destination": "/Index.html" }
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  }
+}
