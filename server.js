@@ -17,7 +17,7 @@ const qrAllowedOrigins = new Set([
   'http://127.0.0.1:10000',
   ...(process.env.QR_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
 ]);
-const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html']);
+const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html', 'voice-assistant.js', 'voice-assistant.css']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],

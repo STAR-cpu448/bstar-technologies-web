@@ -1,0 +1,394 @@
+.voice-assistant-widget {
+  --va-bg: #0b111c;
+  --va-panel: #111a29;
+  --va-border: rgba(195, 216, 245, 0.16);
+  --va-muted: #a4b0c1;
+  --va-text: #f5f7fb;
+  --va-accent: #c9f36a;
+  --va-blue: #70d7f0;
+  position: fixed;
+  z-index: 90;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  color: var(--va-text);
+  font-family: "DM Sans", Arial, sans-serif;
+}
+
+.voice-assistant-widget *,
+.voice-assistant-widget *::before,
+.voice-assistant-widget *::after {
+  box-sizing: border-box;
+}
+
+.voice-assistant-launcher {
+  min-height: 52px;
+  padding: 0 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid rgba(201, 243, 106, 0.5);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #d6ff7f, #a5db4e);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.38), 0 0 24px rgba(201, 243, 106, 0.15);
+  color: #11180a;
+  cursor: pointer;
+  font: 700 14px/1 "DM Sans", Arial, sans-serif;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.voice-assistant-launcher:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.44), 0 0 28px rgba(201, 243, 106, 0.23);
+}
+
+.voice-assistant-launcher:focus-visible,
+.voice-assistant-widget button:focus-visible,
+.voice-assistant-widget textarea:focus-visible,
+.voice-assistant-widget summary:focus-visible {
+  outline: 3px solid var(--va-blue);
+  outline-offset: 3px;
+}
+
+.voice-assistant-launcher-icon {
+  font-size: 19px;
+  line-height: 0.8;
+}
+
+.voice-assistant-panel {
+  width: min(390px, calc(100vw - 32px));
+  max-height: min(690px, calc(100dvh - 100px));
+  min-height: 400px;
+  display: grid;
+  grid-template-rows: auto auto minmax(90px, 1fr) auto auto auto;
+  overflow: hidden;
+  border: 1px solid var(--va-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 92% 0, rgba(112, 215, 240, 0.1), transparent 34%),
+    linear-gradient(155deg, rgba(20, 31, 48, 0.98), rgba(8, 13, 22, 0.99));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(18px);
+}
+
+.voice-assistant-panel[hidden] {
+  display: none;
+}
+
+.voice-assistant-header {
+  min-height: 65px;
+  padding: 12px 14px 11px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--va-border);
+}
+
+.voice-assistant-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.voice-assistant-brand > div {
+  display: grid;
+  gap: 3px;
+}
+
+.voice-assistant-brand strong {
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.voice-assistant-brand small {
+  color: var(--va-muted);
+  font-size: 11px;
+}
+
+.voice-assistant-mark {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(201, 243, 106, 0.5);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(201, 243, 106, 0.2), rgba(112, 215, 240, 0.12));
+  color: var(--va-accent);
+  font: 700 18px/1 "Space Grotesk", "DM Sans", sans-serif;
+}
+
+.voice-assistant-icon-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--va-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--va-text);
+  cursor: pointer;
+  font: 400 24px/1 Arial, sans-serif;
+}
+
+.voice-assistant-status {
+  min-height: 0;
+  padding: 0 17px;
+  color: var(--va-blue);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.voice-assistant-status:not([hidden]) {
+  padding-top: 8px;
+}
+
+.voice-assistant-status[data-state="error"] {
+  color: #ffcc8a;
+}
+
+.voice-assistant-messages {
+  min-height: 100px;
+  padding: 14px 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(164, 176, 193, 0.32) transparent;
+}
+
+.voice-assistant-message {
+  max-width: 90%;
+  padding: 10px 12px;
+  border: 1px solid var(--va-border);
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--va-text);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.voice-assistant-message.is-user {
+  align-self: flex-end;
+  border-color: rgba(201, 243, 106, 0.24);
+  border-radius: 14px 14px 4px 14px;
+  background: rgba(201, 243, 106, 0.12);
+}
+
+.voice-assistant-form {
+  padding: 12px 13px 10px;
+  border-top: 1px solid var(--va-border);
+  background: rgba(3, 7, 13, 0.4);
+}
+
+.voice-assistant-input-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.voice-assistant-form textarea {
+  width: 100%;
+  min-height: 57px;
+  max-height: 110px;
+  padding: 10px 11px;
+  resize: vertical;
+  border: 1px solid var(--va-border);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--va-text);
+  font: 12px/1.45 "DM Sans", Arial, sans-serif;
+}
+
+.voice-assistant-form textarea::placeholder {
+  color: #8794a7;
+}
+
+.voice-assistant-compose-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.voice-assistant-button,
+.voice-assistant-text-button {
+  min-height: 34px;
+  border: 1px solid var(--va-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--va-text);
+  cursor: pointer;
+  font: 600 11px/1.2 "DM Sans", Arial, sans-serif;
+  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+.voice-assistant-button {
+  padding: 0 12px;
+}
+
+.voice-assistant-button:hover:not(:disabled),
+.voice-assistant-text-button:hover:not(:disabled) {
+  border-color: rgba(112, 215, 240, 0.55);
+  background: rgba(112, 215, 240, 0.1);
+}
+
+.voice-assistant-button:disabled,
+.voice-assistant-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.voice-assistant-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.voice-assistant-mic > span:first-child {
+  color: var(--va-blue);
+  font-size: 10px;
+}
+
+.voice-assistant-mic.is-listening {
+  border-color: rgba(255, 140, 116, 0.65);
+  background: rgba(255, 140, 116, 0.12);
+}
+
+.voice-assistant-mic.is-listening > span:first-child {
+  color: #ff8c74;
+  animation: voice-assistant-pulse 1.1s ease-in-out infinite;
+}
+
+.voice-assistant-send {
+  margin-left: auto;
+  border-color: rgba(201, 243, 106, 0.38);
+  background: rgba(201, 243, 106, 0.12);
+  color: var(--va-accent);
+}
+
+.voice-assistant-mic-note {
+  margin: 7px 1px 0;
+  color: var(--va-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.voice-assistant-audio-controls {
+  padding: 9px 13px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--va-border);
+}
+
+.voice-assistant-text-button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #d7dfeb;
+  font-size: 10px;
+}
+
+.voice-assistant-shortcuts {
+  border-top: 1px solid var(--va-border);
+  color: var(--va-muted);
+  font-size: 10px;
+}
+
+.voice-assistant-shortcuts summary {
+  padding: 10px 15px;
+  color: #d4dfeb;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.voice-assistant-shortcut-content {
+  max-height: 155px;
+  padding: 0 15px 12px;
+  overflow-y: auto;
+  line-height: 1.45;
+}
+
+.voice-assistant-shortcut-content p {
+  margin: 5px 0 8px;
+}
+
+.voice-assistant-shortcut-content strong {
+  color: var(--va-text);
+}
+
+.voice-assistant-shortcut-content code {
+  display: block;
+  margin: 8px 0;
+  padding: 7px 8px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--va-border);
+  border-radius: 7px;
+  color: var(--va-blue);
+  font: 10px/1.4 "DM Sans", Arial, sans-serif;
+}
+
+.voice-assistant-copy {
+  min-height: 30px;
+}
+
+.voice-assistant-copy-buffer {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+}
+
+@keyframes voice-assistant-pulse {
+  50% { opacity: 0.35; }
+}
+
+@media (max-width: 600px) {
+  .voice-assistant-widget {
+    right: 0;
+    bottom: 12px;
+    gap: 9px;
+  }
+
+  .voice-assistant-panel {
+    width: min(390px, calc(100vw - 24px));
+    max-height: min(680px, calc(100dvh - 88px));
+    min-height: min(410px, calc(100dvh - 100px));
+    border-radius: 17px;
+  }
+
+  .voice-assistant-launcher {
+    min-height: 48px;
+    padding: 0 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .voice-assistant-widget {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .voice-assistant-panel {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 78px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-assistant-widget *,
+  .voice-assistant-widget *::before,
+  .voice-assistant-widget *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
