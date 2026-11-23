@@ -4,6 +4,12 @@
   const FEE = 10;
   const STORAGE_PHONE = 'bstar-tools-phone-v1';
   const CHECKLIST_KEY = 'bstar-tools-checklists-v1';
+  const STUDIO_CANVAS_PRESETS = [
+    ['1200x900', 'Landscape · 1200 × 900'],
+    ['1080x1080', 'Square post · 1080 × 1080'],
+    ['1080x1920', 'Story · 1080 × 1920'],
+    ['1920x1080', 'Widescreen · 1920 × 1080'],
+  ];
   const TOOL_GROUPS = [
     { name: 'PDF', tools: [
       ['compress-pdf', 'Compress PDF', 'Reduce PDF size with browser-side page rendering.', '▤'],
@@ -39,15 +45,69 @@
     { name: 'Business', tools: [
       ['business-email-transformer', 'Business Email Transformer', 'Turn rough notes into a polished corporate email.', '✉'],
     ] },
+    { name: 'Design', tools: [
+      ['graphic-design-studio', 'DIRA DESIGN STUDIO', 'Create bold posters, social graphics, and brand visuals in your browser.', '✦'],
+    ] },
   ];
 
   const TITLES = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id, title]) => [id, title])));
   const DESCRIPTIONS = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id, title, description]) => [id, description])));
   const GROUPS = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map(([id]) => [id, group.name])));
+  const TOOL_ART = new Map([
+    ['compress-pdf', 'pdf-compress'],
+    ['pdf-to-jpg', 'pdf-to-image'],
+    ['image-to-pdf', 'image-to-pdf'],
+    ['pdf-merge', 'pdf-merge'],
+    ['pdf-split', 'pdf-split'],
+    ['passport-photo', 'passport-photo'],
+    ['image-compress', 'image-compress'],
+    ['image-resize', 'image-resize'],
+    ['format-converter', 'format-converter'],
+    ['image-crop', 'image-crop'],
+    ['whatsapp-link', 'whatsapp-link'],
+    ['qr-generator', 'qr-generator'],
+    ['age-calculator', 'age-calculator'],
+    ['file-size', 'file-size'],
+    ['letter-maker', 'letter-maker'],
+    ['vat-calculator', 'vat-calculator'],
+    ['percentage-calculator', 'percentage-calculator'],
+    ['invoice-maker', 'invoice-maker'],
+    ['mpesa-sheet', 'mpesa-sheet'],
+    ['cv-checklist', 'cv-checklist'],
+    ['business-checklist', 'business-checklist'],
+    ['business-email-transformer', 'business-email'],
+    ['graphic-design-studio', 'graphic-design-studio'],
+  ]);
+  const TOOL_ARTWORK = {
+    'pdf-compress': '<g transform="translate(57 24)"><path class="paper-back" d="M22 8h55l24 23v75H22z"/><path class="paper-fold" d="M77 8v24h24"/><path class="paper-front" d="M9 17h55l24 23v75H9z"/><path class="paper-fold" d="M64 17v24h24"/><path class="accent-stroke" d="M25 57h47M25 68h36M25 79h27"/><path class="accent-fill" d="m52 91 8 8 17-19-5-5-12 13-4-4z"/></g><path class="accent-stroke" d="M54 132h132"/>',
+    'pdf-to-image': '<g transform="translate(50 20)"><path class="paper-front" d="M22 7h58l23 23v72H22z"/><path class="paper-fold" d="M80 7v24h23"/><rect class="screen" x="34" y="46" width="56" height="41" rx="4"/><circle class="accent-fill" cx="73" cy="58" r="6"/><path class="accent-fill" d="m38 80 17-17 11 11 8-7 12 13z"/></g><path class="accent-stroke" d="M143 66h28m-8-8 8 8-8 8"/>',
+    'image-to-pdf': '<g transform="translate(46 20)"><rect class="paper-back" x="23" y="13" width="60" height="78" rx="5" transform="rotate(-9 23 13)"/><rect class="screen" x="21" y="25" width="55" height="43" rx="4"/><circle class="accent-fill" cx="60" cy="37" r="6"/><path class="accent-fill" d="m24 61 17-18 10 10 8-7 14 15z"/><path class="paper-front" d="M90 37h43l18 19v55H90z"/><path class="paper-fold" d="M133 37v20h18"/><path class="accent-stroke" d="M101 76h37m-37 10h29"/>',
+    'pdf-merge': '<g transform="translate(42 20)"><path class="paper-back" d="M18 12h43l18 18v59H18z"/><path class="paper-front" d="M86 12h43l18 18v59H86z"/><path class="paper-fold" d="M61 12v18h18m50-18v18h18"/><path class="accent-stroke" d="M32 46h24m-24 10h20m48-10h24m-24 10h20"/><path class="accent-fill" d="m70 83 11 12 11-12h-7V68h-8v15z"/></g>',
+    'pdf-split': '<g transform="translate(63 16)"><path class="paper-front" d="M22 8h56l23 23v80H22z"/><path class="paper-fold" d="M78 8v24h23"/><path class="accent-stroke" d="M36 49h47M36 60h38M36 71h47M36 82h31"/><path class="accent-stroke" d="M50 95v20m0 0-7-7m7 7 7-7m23-13v13m0 0-7-7m7 7 7-7"/></g>',
+    'passport-photo': '<g transform="translate(50 17)"><rect class="paper-back" x="16" y="12" width="108" height="100" rx="8"/><rect class="screen" x="25" y="21" width="90" height="82" rx="4"/><circle class="accent-fill" cx="70" cy="48" r="17"/><path class="accent-fill" d="M40 95c3-20 14-30 30-30s27 10 30 30z"/><path class="accent-stroke" d="M19 38v-9h9m87 0h9v9M19 84v9h9m87 0h9v-9"/></g>',
+    'image-compress': '<g transform="translate(40 25)"><rect class="paper-back" x="20" y="20" width="80" height="64" rx="8" transform="rotate(-8 20 20)"/><rect class="screen" x="35" y="24" width="80" height="64" rx="8"/><circle class="accent-fill" cx="92" cy="41" r="8"/><path class="accent-fill" d="m42 78 22-24 16 15 11-10 18 19z"/><path class="accent-stroke" d="M130 42h28m-8-8 8 8-8 8M158 72h-28m8 8-8-8 8-8"/></g>',
+    'image-resize': '<g transform="translate(47 18)"><rect class="screen" x="28" y="24" width="94" height="76" rx="7"/><circle class="accent-fill" cx="94" cy="41" r="8"/><path class="accent-fill" d="m37 88 25-29 17 18 13-13 22 24z"/><path class="accent-stroke" d="M18 42V20h22m87 0h22v22M18 83v22h22m87 0h22V83"/></g>',
+    'format-converter': '<g transform="translate(43 20)"><path class="paper-back" d="M20 14h49l18 19v72H20z"/><path class="paper-front" d="M77 14h49l18 19v72H77z"/><path class="paper-fold" d="M69 14v20h18m50-20v20h18"/><text class="svg-label" x="35" y="76">JPG</text><text class="svg-label svg-label-alt" x="91" y="76">WEBP</text><path class="accent-stroke" d="M65 53h20m-6-6 6 6-6 6"/></g>',
+    'image-crop': '<g transform="translate(47 19)"><rect class="screen" x="22" y="20" width="105" height="84" rx="7"/><circle class="accent-fill" cx="99" cy="38" r="8"/><path class="accent-fill" d="m30 94 27-32 19 18 16-14 27 28z"/><path class="accent-stroke" d="M40 20H22v18m87-18h18v18M22 86v18h18m87-18v18h-18"/></g>',
+    'whatsapp-link': '<g transform="translate(68 9)"><rect class="device" x="20" y="6" width="72" height="120" rx="14"/><rect class="screen" x="26" y="19" width="60" height="94" rx="8"/><path class="accent-fill" d="M36 43h38a9 9 0 0 1 0 18H52l-10 8v-8h-6a9 9 0 0 1 0-18z"/><path class="paper-front" d="M42 70h31a8 8 0 0 1 0 16H59l-9 7v-7h-8a8 8 0 0 1 0-16z"/><circle class="accent-fill" cx="51" cy="97" r="2"/><circle class="accent-fill" cx="58" cy="97" r="2"/></g>',
+    'qr-generator': '<g transform="translate(60 16)"><rect class="paper-front" x="15" y="10" width="100" height="100" rx="10"/><g class="ink-fill"><path d="M27 22h28v28H27zm7 7v14h14V29zm48-7h28v28H82zm7 7v14h14V29zM27 70h28v28H27zm7 7v14h14V77zM66 22h8v8h-8zm0 16h8v8h-8zm0 16h8v8h-8zm16 8h8v8h-8zm16 0h8v8h-8zm-32 8h8v8h-8zm16 8h8v8h-8zm16 8h8v8h-8zm16 0h8v8h-8zm-32 8h8v8h-8zm16 8h8v8h-8z"/></g></g>',
+    'age-calculator': '<g transform="translate(47 20)"><rect class="paper-front" x="20" y="18" width="108" height="88" rx="10"/><path class="accent-fill" d="M20 29a11 11 0 0 1 11-11h86a11 11 0 0 1 11 11v12H20z"/><path class="ink-stroke" d="M44 13v15m60-15v15"/><circle class="accent-stroke" cx="74" cy="75" r="22"/><path class="accent-stroke" d="M74 61v15l12 7"/><circle class="accent-fill" cx="112" cy="89" r="4"/></g>',
+    'file-size': '<g transform="translate(42 21)"><rect class="paper-back" x="18" y="16" width="68" height="88" rx="8"/><path class="paper-front" d="M72 16h37l19 19v69H72z"/><path class="paper-fold" d="M109 16v20h19"/><path class="accent-stroke" d="M85 57h29M85 68h29M85 79h29"/><rect class="accent-fill" x="84" y="88" width="7" height="8" rx="2"/><rect class="accent-fill" x="95" y="82" width="7" height="14" rx="2"/><rect class="accent-fill" x="106" y="73" width="7" height="23" rx="2"/></g>',
+    'letter-maker': '<g transform="translate(40 23)"><path class="paper-back" d="M33 8h61l20 20v91H33z"/><path class="paper-fold" d="M94 8v21h20"/><path class="accent-stroke" d="M48 47h51M48 59h51M48 71h43M48 83h47"/><rect class="paper-front" x="18" y="76" width="76" height="49" rx="8"/><path class="accent-stroke" d="m22 82 34 25 34-25"/></g>',
+    'vat-calculator': '<g transform="translate(43 14)"><rect class="device" x="33" y="7" width="82" height="112" rx="11"/><rect class="screen" x="42" y="18" width="64" height="29" rx="5"/><text class="svg-label" x="53" y="39">16%</text><g class="key-fill"><rect x="43" y="56" width="15" height="13" rx="3"/><rect x="65" y="56" width="15" height="13" rx="3"/><rect x="87" y="56" width="15" height="13" rx="3"/><rect x="43" y="76" width="15" height="13" rx="3"/><rect x="65" y="76" width="15" height="13" rx="3"/><rect x="87" y="76" width="15" height="13" rx="3"/><rect x="43" y="96" width="15" height="13" rx="3"/><rect x="65" y="96" width="37" height="13" rx="3"/></g></g>',
+    'percentage-calculator': '<g transform="translate(42 23)"><circle class="paper-back" cx="67" cy="59" r="45"/><path class="accent-fill" d="M67 14a45 45 0 0 1 41 63L67 59z"/><circle class="paper-front" cx="67" cy="59" r="26"/><circle class="accent-fill" cx="49" cy="48" r="6"/><circle class="accent-fill" cx="85" cy="70" r="6"/><path class="accent-stroke" d="m45 82 45-46"/><rect class="paper-front" x="113" y="63" width="47" height="39" rx="8"/><text class="svg-label" x="121" y="89">%</text></g>',
+    'invoice-maker': '<g transform="translate(47 13)"><path class="paper-front" d="M24 7h87l18 19v100H24z"/><path class="paper-fold" d="M111 7v20h18"/><text class="svg-label svg-label-alt" x="40" y="39">INVOICE</text><path class="accent-stroke" d="M40 50h70M40 63h48M40 75h70M40 87h53"/><path class="paper-back" d="M87 95h42v22H87z"/><path class="accent-stroke" d="M96 106h22"/></g>',
+    'mpesa-sheet': '<g transform="translate(50 16)"><path class="paper-front" d="M28 7h81l17 18v108H28z"/><path class="paper-fold" d="M109 7v19h17"/><text class="svg-label svg-label-alt" x="43" y="39">PAYMENT</text><path class="accent-stroke" d="M44 51h60M44 61h47M44 76h58M44 87h38"/><circle class="accent-fill" cx="103" cy="104" r="14"/><path class="ink-stroke" d="m96 104 5 5 10-12"/></g>',
+    'cv-checklist': '<g transform="translate(43 15)"><rect class="device" x="34" y="16" width="90" height="104" rx="10"/><rect class="paper-front" x="43" y="25" width="72" height="87" rx="5"/><circle class="accent-fill" cx="60" cy="47" r="10"/><path class="ink-stroke" d="M50 64h21M53 72h15"/><path class="accent-stroke" d="m83 50 4 4 7-9m-11 26 4 4 7-9m-11 26 4 4 7-9"/><path class="ink-stroke" d="M99 52h8M99 78h8M99 104h8"/></g>',
+    'business-checklist': '<g transform="translate(42 16)"><rect class="device" x="31" y="17" width="96" height="103" rx="10"/><rect class="paper-front" x="41" y="26" width="76" height="85" rx="5"/><path class="accent-fill" d="M59 44h40v25H59z"/><path class="ink-stroke" d="M66 61v-8l13-8 13 8v8m-17 0v-8h8v8"/><path class="accent-stroke" d="m55 82 4 4 7-9m9 5h24m-44 12 4 4 7-9m9 5h24"/></g>',
+    'business-email': '<g transform="translate(37 23)"><path class="paper-back" d="M54 8h61l18 19v90H54z"/><path class="paper-fold" d="M115 8v20h18"/><path class="accent-stroke" d="M69 47h49M69 58h43M69 69h48M69 80h37"/><rect class="paper-front" x="17" y="78" width="83" height="52" rx="9"/><path class="accent-stroke" d="m21 84 37 26 38-26"/><path class="accent-fill" d="m106 44 5 5 10-12"/></g>',
+    'graphic-design-studio': '<g transform="translate(34 18)"><rect class="device" x="18" y="15" width="130" height="99" rx="10"/><rect class="screen" x="26" y="23" width="114" height="78" rx="5"/><rect class="paper-front" x="43" y="37" width="54" height="50" rx="3"/><circle class="accent-fill" cx="113" cy="48" r="11"/><path class="accent-stroke" d="m101 83 12-17 10 12 7-8 9 13"/><path class="accent-stroke" d="M68 115h30m-15 0v8"/></g>',
+  };
   TITLES.set('3d-modeler-maker', '3D Modeler — Maker License');
   TITLES.set('3d-modeler-pro', '3D Modeler — Pro License');
   const PRICES = new Map([
     ['business-email-transformer', 50],
+    ['graphic-design-studio', 900],
     ['3d-modeler-maker', 50],
     ['3d-modeler-pro', 300],
   ]);
@@ -73,6 +133,11 @@
   let pendingToolId = null;
   let currentPaymentCode = '';
   let cropState = null;
+  let studioState = null;
+  let studioProEnabled = false;
+  let studioUndo = [];
+  let studioRedo = [];
+  let studioDrag = null;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const el = (tag, className, text) => {
@@ -81,6 +146,101 @@
     if (text !== undefined) node.textContent = text;
     return node;
   };
+
+  function makeToolVisual(toolId) {
+    const art = TOOL_ART.get(toolId);
+    if (!art || !TOOL_ARTWORK[art]) return null;
+
+    const stage = el('span', 'tools-visual-stage');
+    stage.dataset.toolArt = art;
+    stage.dataset.visualCategory = (GROUPS.get(toolId) || 'Everyday').toLowerCase();
+    stage.setAttribute('aria-hidden', 'true');
+
+    const artwork = el('span', 'tools-visual-art');
+    artwork.innerHTML = `<svg class="tools-visual-svg" viewBox="0 0 220 150" focusable="false" aria-hidden="true"><defs>
+      <linearGradient id="__ID__-paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#dce8f7"/></linearGradient>
+      <linearGradient id="__ID__-back" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9c9de"/><stop offset="1" stop-color="#7187a6"/></linearGradient>
+      <linearGradient id="__ID__-screen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#193657"/><stop offset="1" stop-color="#111a2b"/></linearGradient>
+      <linearGradient id="__ID__-device" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#62718a"/><stop offset=".45" stop-color="#222d40"/><stop offset="1" stop-color="#111722"/></linearGradient>
+      </defs><ellipse cx="110" cy="133" rx="69" ry="9" fill="rgba(0,0,0,.38)"/>${TOOL_ARTWORK[art]}</svg>`;
+    const svg = artwork.querySelector('svg');
+    const artworkId = `tools-${toolId}`;
+    svg.innerHTML = svg.innerHTML.replaceAll('__ID__', artworkId);
+    svg.querySelectorAll('.paper-front').forEach((shape) => shape.setAttribute('fill', `url(#${artworkId}-paper)`));
+    svg.querySelectorAll('.paper-back').forEach((shape) => shape.setAttribute('fill', `url(#${artworkId}-back)`));
+    svg.querySelectorAll('.screen').forEach((shape) => shape.setAttribute('fill', `url(#${artworkId}-screen)`));
+    svg.querySelectorAll('.device').forEach((shape) => shape.setAttribute('fill', `url(#${artworkId}-device)`));
+
+    const icon = el('span', 'tools-visual-icon', TOOL_GROUPS.flatMap((group) => group.tools).find(([id]) => id === toolId)?.[3] || '');
+    icon.setAttribute('aria-hidden', 'true');
+    artwork.append(icon);
+    stage.append(artwork);
+
+    const image = el('img', 'tools-visual-image');
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.setAttribute('aria-hidden', 'true');
+    image.dataset.fallbackTried = 'false';
+    image.addEventListener('load', () => stage.classList.add('has-render'));
+    image.addEventListener('error', () => {
+      if (image.dataset.fallbackTried === 'false') {
+        image.dataset.fallbackTried = 'true';
+        image.src = `/assets/tools/${toolId}.png`;
+        return;
+      }
+      image.hidden = true;
+    });
+    image.src = `/assets/tools/${toolId}.webp`;
+    stage.append(image);
+    return stage;
+  }
+
+  function enhanceToolVisuals() {
+    document.querySelectorAll('.tools-spotlight-card[data-tool-id], .tools-card[data-tool-id]').forEach((card) => {
+      if (card.querySelector('.tools-visual-stage')) return;
+      const visual = makeToolVisual(card.dataset.toolId);
+      if (!visual) return;
+      if (card.matches('.tools-spotlight-card')) {
+        const icon = card.querySelector('.tools-spotlight-icon');
+        if (icon) {
+          icon.replaceChildren(visual);
+          icon.classList.add('has-tool-visual');
+          return;
+        }
+      }
+      card.prepend(visual);
+    });
+  }
+
+  function addStudioFlagshipCard() {
+    const spotlight = $('.tools-spotlight');
+    if (!spotlight || spotlight.parentElement.querySelector('.graphic-studio-flagship')) return;
+    const card = el('button', 'graphic-studio-flagship');
+    card.type = 'button';
+    card.dataset.toolId = 'graphic-design-studio';
+    card.setAttribute('aria-label', 'Open DIRA DESIGN STUDIO. KES 900');
+
+    const visualWrap = el('span', 'graphic-studio-flagship-visual');
+    const visual = makeToolVisual('graphic-design-studio');
+    if (visual) {
+      visual.classList.add('graphic-studio-flagship-art');
+      visualWrap.append(visual);
+    }
+    const copy = el('span', 'graphic-studio-flagship-copy');
+    copy.append(
+      el('span', 'graphic-studio-flagship-eyebrow', 'CANVA-STYLE STUDIO · DESIGN LIKE A PRO'),
+      el('strong', 'graphic-studio-flagship-title', TITLES.get('graphic-design-studio')),
+      el('small', '', DESCRIPTIONS.get('graphic-design-studio')),
+    );
+    const action = el('span', 'graphic-studio-flagship-action');
+    action.append(
+      el('span', 'graphic-studio-flagship-price', 'KES 900'),
+      el('span', 'graphic-studio-flagship-cta', 'Open the studio ↗'),
+    );
+    card.append(copy, action, visualWrap);
+    spotlight.parentElement.insertBefore(card, spotlight);
+  }
 
   async function getClient() {
     if (!window.BSTAR_APP?.getStoreClient) throw new Error('The storefront Supabase client is not available.');
@@ -120,10 +280,13 @@
         const button = el('button', 'tools-card');
         button.type = 'button';
         button.dataset.toolId = id;
+        const visual = makeToolVisual(id);
         const symbol = el('span', 'tools-card-icon', icon);
         symbol.setAttribute('aria-hidden', 'true');
-        const price = el('span', 'tools-price-badge', `KES ${PRICES.get(id) || FEE}`);
+        const price = el('span', `tools-price-badge${id === 'graphic-design-studio' ? ' graphic-studio-price' : ''}`,
+          `KES ${PRICES.get(id) || FEE}`);
         const summary = el('span', 'tools-card-description', description);
+        if (visual) button.append(visual);
         button.append(symbol, el('strong', '', title), summary, price);
         grid.append(button);
       });
@@ -215,6 +378,7 @@
 
   function openTool(toolId) {
     currentTool = toolId;
+    studioProEnabled = toolId === 'graphic-design-studio';
     $('#tools-workspace-title').textContent = TITLES.get(toolId);
     $('#tools-workspace-category').textContent = GROUPS.get(toolId).toUpperCase();
     $('#tools-workspace-description').textContent = DESCRIPTIONS.get(toolId);
@@ -286,6 +450,494 @@
     return content;
   }
 
+  function studioSnapshot() {
+    return JSON.stringify({
+      elements: studioState.elements,
+      background: studioState.background,
+      width: studioState.width,
+      height: studioState.height,
+    });
+  }
+
+  function studioCommit() {
+    studioUndo.push(studioSnapshot());
+    if (studioUndo.length > 50) studioUndo.shift();
+    studioRedo = [];
+  }
+
+  function studioApplySnapshot(snapshot) {
+    const restored = JSON.parse(snapshot);
+    studioState.elements = restored.elements;
+    studioState.background = restored.background;
+    studioState.width = restored.width;
+    studioState.height = restored.height;
+    if (!studioState.elements.some((item) => item.id === studioState.selectedId)) studioState.selectedId = null;
+    studioRenderScene();
+    studioSyncControls();
+  }
+
+  function studioNewElement(type, values = {}) {
+    return {
+      id: `studio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      x: 25,
+      y: 25,
+      width: type === 'text' ? 45 : 28,
+      height: type === 'text' ? 13 : 25,
+      text: type === 'text' ? 'Your text' : type === 'sticker' ? '✦' : '',
+      color: type === 'circle' ? '#00c6ff' : type === 'sticker' ? '#ffd700' : '#c7f24d',
+      fontSize: 42,
+      align: 'center',
+      ...values,
+    };
+  }
+
+  function studioItemStyle(item, node) {
+    node.style.left = `${item.x}%`;
+    node.style.top = `${item.y}%`;
+    node.style.width = `${item.width}%`;
+    node.style.height = `${item.height}%`;
+    if (item.type === 'text') {
+      node.style.color = item.color;
+      node.style.fontSize = `clamp(12px, ${item.fontSize / 9.6}cqw, 88px)`;
+      node.style.textAlign = item.align;
+      node.style.background = 'transparent';
+      node.style.borderRadius = '0';
+    } else if (item.type === 'image') {
+      node.style.background = 'transparent';
+    } else {
+      node.style.background = item.color;
+      node.style.borderRadius = item.type === 'circle' || item.type === 'sticker' ? '50%' : item.type === 'badge' ? '999px' : '8px';
+      node.style.color = item.type === 'sticker' ? '#111827' : '#07101b';
+      node.style.fontSize = 'clamp(12px, 3cqw, 34px)';
+    }
+  }
+
+  function studioRenderScene() {
+    const stage = $('#graphic-studio-canvas');
+    if (!stage || !studioState) return;
+    stage.style.setProperty('--studio-background', studioState.background);
+    stage.style.aspectRatio = `${studioState.width} / ${studioState.height}`;
+    stage.replaceChildren();
+    studioState.elements.forEach((item, index) => {
+      const node = el('div', `graphic-studio-item${item.id === studioState.selectedId ? ' is-selected' : ''}`);
+      node.dataset.studioItem = item.id;
+      node.dataset.layerIndex = String(index);
+      studioItemStyle(item, node);
+      if (item.type === 'image') {
+        const image = el('img');
+        image.src = item.src;
+        image.alt = item.text || 'Uploaded design image';
+        image.draggable = false;
+        node.append(image);
+      } else if (item.text) node.append(document.createTextNode(item.text));
+      if (item.id === studioState.selectedId) node.append(el('span', 'graphic-studio-resize', '↘'));
+      stage.append(node);
+    });
+    if (!studioProEnabled) stage.append(el('span', 'graphic-studio-watermark', 'DIRA PULSE'));
+    studioSyncLayerList();
+  }
+
+  function studioSyncLayerList() {
+    const list = $('[data-studio-layers]');
+    if (!list || !studioState) return;
+    list.replaceChildren();
+    [...studioState.elements].reverse().forEach((item, reverseIndex) => {
+      const index = studioState.elements.length - reverseIndex - 1;
+      const layer = el('button', `graphic-studio-layer${item.id === studioState.selectedId ? ' is-selected' : ''}`,
+        item.type === 'text' ? item.text.slice(0, 22) || 'Text' : item.type === 'image' ? 'Image' : item.type === 'sticker' ? 'Pro sticker' : item.type);
+      layer.type = 'button';
+      layer.dataset.studioAction = 'select-layer';
+      layer.dataset.layerId = item.id;
+      layer.title = `Select layer ${index + 1}`;
+      list.append(layer);
+    });
+  }
+
+  function studioSyncControls() {
+    const item = studioState?.elements.find((entry) => entry.id === studioState.selectedId);
+    const text = $('[data-studio-prop="text"]');
+    const color = $('[data-studio-prop="color"]');
+    const size = $('[data-studio-prop="fontSize"]');
+    const align = $('[data-studio-prop="align"]');
+    if (text) text.value = item?.text || '';
+    if (color) color.value = item?.color || '#c7f24d';
+    if (size) size.value = String(item?.fontSize || 42);
+    if (align) align.value = item?.align || 'center';
+    const disabled = !item;
+    [text, color, size, align].forEach((control) => { if (control) control.disabled = disabled; });
+  }
+
+  function studioButton(label, action, secondary = false) {
+    const control = el('button', `graphic-studio-button${secondary ? ' is-secondary' : ''}`, label);
+    control.type = 'button';
+    control.dataset.studioAction = action;
+    return control;
+  }
+
+  function studioControl(labelText, control) {
+    const label = el('label', 'graphic-studio-control');
+    label.append(el('span', '', labelText), control);
+    return label;
+  }
+
+  function studioPropertyControl(type, property, value, options = {}) {
+    const control = el(type === 'select' ? 'select' : 'input');
+    if (type !== 'select') control.type = type;
+    control.dataset.studioProp = property;
+    control.value = value;
+    if (options.min) control.min = options.min;
+    if (options.max) control.max = options.max;
+    control.disabled = true;
+    return control;
+  }
+
+  function renderGraphicDesignStudio(content) {
+    studioState = { elements: [], background: '#fff5dc', selectedId: null, width: 1200, height: 900 };
+    studioUndo = [];
+    studioRedo = [];
+    const workspace = el('section', 'graphic-studio');
+    const toolbar = el('div', 'graphic-studio-toolbar');
+    toolbar.setAttribute('aria-label', 'Design tools');
+    toolbar.append(
+      studioButton('+ Text', 'add-text'),
+      studioButton('Rectangle', 'add-rect', true),
+      studioButton('Circle', 'add-circle', true),
+    );
+    const canvasSize = select('canvasSize', STUDIO_CANVAS_PRESETS);
+    canvasSize.dataset.studioSize = 'true';
+    const canvasSizeLabel = el('label', 'graphic-studio-size');
+    canvasSizeLabel.append(el('span', '', 'Canvas size'), canvasSize);
+    toolbar.append(canvasSizeLabel);
+    const upload = el('input', 'graphic-studio-upload');
+    upload.type = 'file';
+    upload.accept = 'image/png,image/jpeg,image/webp';
+    upload.setAttribute('aria-label', 'Upload an image');
+    upload.dataset.studioUpload = 'true';
+    const uploadLabel = el('label', 'graphic-studio-button is-secondary graphic-studio-upload-label', 'Upload image');
+    uploadLabel.append(upload);
+    toolbar.append(uploadLabel);
+
+    const proRow = el('div', 'graphic-studio-toolbar graphic-studio-probar');
+    proRow.append(
+      studioButton('Poster preset · Pro', 'pro-preset'),
+      studioButton('Add sticker · Pro', 'pro-sticker', true),
+      studioButton('Verify Studio access', 'check-pro', true),
+    );
+    const transparentLabel = el('label', 'graphic-studio-transparent');
+    const transparent = input('checkbox', 'transparentExport');
+    transparent.dataset.studioTransparent = 'true';
+    transparentLabel.append(transparent, el('span', '', 'Transparent export · Pro'));
+    proRow.append(transparentLabel);
+    const historyRow = el('div', 'graphic-studio-toolbar graphic-studio-history');
+    historyRow.append(
+      studioButton('Undo', 'undo', true),
+      studioButton('Redo', 'redo', true),
+      studioButton('Clear design', 'clear', true),
+      studioButton('Export PNG', 'export'),
+      studioButton('High-res / transparent · Pro', 'pro-export', true),
+    );
+
+    const editor = el('div', 'graphic-studio-editor');
+    const stageWrap = el('div', 'graphic-studio-stage-wrap');
+    const stage = el('div', 'graphic-studio-canvas');
+    stage.id = 'graphic-studio-canvas';
+    stage.setAttribute('role', 'group');
+    stage.setAttribute('aria-label', 'Design canvas. Add an element, then select and drag it to arrange your design.');
+    stageWrap.append(stage);
+    const side = el('aside', 'graphic-studio-sidebar');
+    side.append(el('h3', '', 'Selected element'));
+    side.append(
+      studioControl('Text', studioPropertyControl('text', 'text', '')),
+      studioControl('Color', studioPropertyControl('color', 'color', '#c7f24d')),
+      studioControl('Font size', studioPropertyControl('number', 'fontSize', '42', { min: '12', max: '160' })),
+      studioControl('Text alignment', studioPropertyControl('select', 'align', 'center')),
+    );
+    const alignment = $('[data-studio-prop="align"]', side);
+    [['left', 'Left'], ['center', 'Center'], ['right', 'Right']].forEach(([value, label]) => {
+      const option = el('option', '', label);
+      option.value = value;
+      alignment.append(option);
+    });
+    const layerActions = el('div', 'graphic-studio-layer-actions');
+    layerActions.append(studioButton('Send backward', 'layer-down', true), studioButton('Bring forward', 'layer-up', true), studioButton('Delete', 'delete', true));
+    side.append(el('h3', '', 'Layers'), layerActions);
+    const layers = el('div', 'graphic-studio-layers');
+    layers.dataset.studioLayers = 'true';
+    side.append(layers, el('p', 'graphic-studio-hint', 'Studio access is KES 900. Includes poster presets, stickers, high-resolution and transparent PNG export.'));
+    editor.append(stageWrap, side);
+    workspace.append(toolbar, proRow, historyRow, editor);
+    content.append(workspace);
+    studioRenderScene();
+    studioSyncControls();
+    stage.addEventListener('pointerdown', handleStudioPointerDown);
+  }
+
+  function studioAdd(type, values = {}) {
+    studioCommit();
+    const item = studioNewElement(type, values);
+    studioState.elements.push(item);
+    studioState.selectedId = item.id;
+    studioRenderScene();
+    studioSyncControls();
+  }
+
+  async function studioCheckPro() {
+    const phone = localStorage.getItem(STORAGE_PHONE) || '';
+    if (phone && await activeSubscription(phone, 'graphic-design-studio')) {
+      studioProEnabled = true;
+      studioRenderScene();
+      setStatus('DIRA DESIGN STUDIO access is active on this phone number.', 'success');
+      return true;
+    }
+    return false;
+  }
+
+  function studioOpenProPayment() {
+    pendingToolId = 'graphic-design-studio';
+    const form = $('#tools-paywall-form');
+    const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
+    $('#tools-paywall-title').textContent = 'Unlock DIRA DESIGN STUDIO';
+    $('#tools-paywall-instructions').innerHTML = 'Send <strong>KES 900</strong> to <strong>0794940193</strong> via M-Pesa Send Money. Enter your phone number and M-Pesa confirmation code below. Studio access is enabled after an administrator approves the payment.';
+    form.elements.phone.value = rememberedPhone;
+    form.querySelector('[type="submit"]').textContent = 'Submit KES 900 for approval';
+    document.body.classList.add('panel-open');
+    $('#tools-paywall').showModal();
+    form.elements.phone.focus();
+  }
+
+  async function studioRequirePro() {
+    if (studioProEnabled) return true;
+    try {
+      if (await studioCheckPro()) return true;
+      studioOpenProPayment();
+      return false;
+    } catch (error) {
+      console.error('DIRA DESIGN STUDIO access check failed:', error);
+      setStatus(`Could not check Pro access: ${error.message}`, 'error');
+      return false;
+    }
+  }
+
+  async function studioExport(pro = false) {
+    if (pro && !await studioRequirePro()) return;
+    const scale = pro ? 2 : 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = studioState.width * scale;
+    canvas.height = studioState.height * scale;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas export is unavailable in this browser.');
+    const transparent = pro && $('[data-studio-transparent]')?.checked;
+    if (!transparent) {
+      context.fillStyle = studioState.background;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    for (const item of studioState.elements) {
+      const x = item.x / 100 * canvas.width;
+      const y = item.y / 100 * canvas.height;
+      const width = item.width / 100 * canvas.width;
+      const height = item.height / 100 * canvas.height;
+      if (item.type === 'image') {
+        const image = new Image();
+        image.src = item.src;
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = () => reject(new Error('An uploaded image could not be exported.'));
+        });
+        context.drawImage(image, x, y, width, height);
+      } else if (item.type === 'text') {
+        context.fillStyle = item.color;
+        context.font = `600 ${Math.max(12, item.fontSize * canvas.width / 960)}px "DM Sans", sans-serif`;
+        context.textAlign = item.align;
+        const lines = item.text.split('\n');
+        const lineHeight = Math.max(12, item.fontSize * canvas.width / 960 * 1.2);
+        const anchorX = item.align === 'left' ? x : item.align === 'right' ? x + width : x + width / 2;
+        lines.forEach((line, index) => context.fillText(line, anchorX, y + lineHeight * (index + 1), width));
+      } else {
+        context.fillStyle = item.color;
+        if (item.type === 'circle' || item.type === 'sticker') {
+          context.beginPath();
+          context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+          context.fill();
+        } else {
+          context.fillRect(x, y, width, height);
+        }
+        if (item.text) {
+          context.fillStyle = item.type === 'sticker' ? '#111827' : '#07101b';
+          context.font = `700 ${Math.max(12, height * 0.48)}px sans-serif`;
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(item.text, x + width / 2, y + height / 2, width * 0.9);
+          context.textBaseline = 'alphabetic';
+        }
+      }
+    }
+    if (!studioProEnabled) {
+      context.fillStyle = 'rgba(25,34,48,.48)';
+      context.font = `${Math.max(12, canvas.width * 0.015)}px sans-serif`;
+      context.textAlign = 'right';
+      context.fillText('DIRA PULSE', canvas.width - canvas.width * 0.025, canvas.height - canvas.width * 0.025);
+    }
+    const blob = await canvasBlob(canvas, 'image/png');
+    downloadBlob(blob, 'dira-pulse-design.png');
+    setStatus(`${pro ? 'High-resolution Pro' : 'Standard-size'} PNG exported.`, 'success');
+  }
+
+  function handleStudioPointerDown(event) {
+    if (!studioState || event.button !== 0) return;
+    const stage = event.currentTarget;
+    const node = event.target.closest('[data-studio-item]');
+    if (!node) {
+      studioState.selectedId = null;
+      studioRenderScene();
+      studioSyncControls();
+      return;
+    }
+    const item = studioState.elements.find((entry) => entry.id === node.dataset.studioItem);
+    if (!item) return;
+    studioState.selectedId = item.id;
+    studioSyncControls();
+    node.classList.add('is-selected');
+    studioSyncLayerList();
+    studioCommit();
+    const resize = event.target.closest('.graphic-studio-resize');
+    const bounds = stage.getBoundingClientRect();
+    studioDrag = {
+      id: item.id,
+      mode: resize ? 'resize' : 'move',
+      startX: event.clientX,
+      startY: event.clientY,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+      stageWidth: bounds.width,
+      stageHeight: bounds.height,
+    };
+    event.preventDefault();
+  }
+
+  function handleStudioPointerMove(event) {
+    if (!studioDrag || !studioState) return;
+    const item = studioState.elements.find((entry) => entry.id === studioDrag.id);
+    const node = $(`[data-studio-item="${studioDrag.id}"]`);
+    if (!item || !node) return;
+    const dx = (event.clientX - studioDrag.startX) / studioDrag.stageWidth * 100;
+    const dy = (event.clientY - studioDrag.startY) / studioDrag.stageHeight * 100;
+    if (studioDrag.mode === 'resize') {
+      item.width = Math.max(5, Math.min(95 - item.x, studioDrag.width + dx));
+      item.height = Math.max(5, Math.min(95 - item.y, studioDrag.height + dy));
+    } else {
+      item.x = Math.max(0, Math.min(100 - item.width, studioDrag.x + dx));
+      item.y = Math.max(0, Math.min(100 - item.height, studioDrag.y + dy));
+    }
+    studioItemStyle(item, node);
+  }
+
+  function handleStudioPointerUp() {
+    studioDrag = null;
+  }
+
+  async function handleStudioAction(action, event) {
+    if (!studioState) return false;
+    if (action === 'add-text') studioAdd('text');
+    else if (action === 'add-rect') studioAdd('rect');
+    else if (action === 'add-circle') studioAdd('circle');
+    else if (action === 'select-layer') {
+      studioState.selectedId = event.target.closest('[data-layer-id]').dataset.layerId;
+      studioRenderScene();
+      studioSyncControls();
+    } else if (action === 'delete') {
+      if (!studioState.selectedId) throw new Error('Select an element to delete.');
+      studioCommit();
+      studioState.elements = studioState.elements.filter((item) => item.id !== studioState.selectedId);
+      studioState.selectedId = null;
+      studioRenderScene();
+      studioSyncControls();
+    } else if (action === 'layer-up' || action === 'layer-down') {
+      const index = studioState.elements.findIndex((item) => item.id === studioState.selectedId);
+      const next = index + (action === 'layer-up' ? 1 : -1);
+      if (index < 0 || next < 0 || next >= studioState.elements.length) return true;
+      studioCommit();
+      [studioState.elements[index], studioState.elements[next]] = [studioState.elements[next], studioState.elements[index]];
+      studioRenderScene();
+    } else if (action === 'undo' || action === 'redo') {
+      const source = action === 'undo' ? studioUndo : studioRedo;
+      const destination = action === 'undo' ? studioRedo : studioUndo;
+      if (!source.length) return true;
+      destination.push(studioSnapshot());
+      studioApplySnapshot(source.pop());
+    } else if (action === 'clear') {
+      if (!studioState.elements.length) return true;
+      studioCommit();
+      studioState.elements = [];
+      studioState.selectedId = null;
+      studioRenderScene();
+      studioSyncControls();
+    } else if (action === 'check-pro') {
+      if (!await studioCheckPro()) studioOpenProPayment();
+    } else if (action === 'toggle-transparent') {
+      if (!await studioRequirePro()) $('[data-studio-transparent]').checked = false;
+    } else if (action === 'pro-preset') {
+      if (!await studioRequirePro()) return true;
+      studioCommit();
+      studioState.background = '#0c1424';
+      studioState.elements = [
+        studioNewElement('text', { x: 12, y: 18, width: 76, height: 24, text: 'YOUR BIG IDEA', color: '#c7f24d', fontSize: 72, align: 'center' }),
+        studioNewElement('text', { x: 18, y: 55, width: 64, height: 15, text: 'Make it impossible to ignore.', color: '#ffffff', fontSize: 36, align: 'center' }),
+      ];
+      studioState.selectedId = studioState.elements[0].id;
+      studioRenderScene();
+      studioSyncControls();
+    } else if (action === 'pro-sticker') {
+      if (!await studioRequirePro()) return true;
+      studioAdd('sticker');
+    } else if (action === 'export') {
+      await studioExport(false);
+    } else if (action === 'pro-export') {
+      await studioExport(true);
+    }
+    return true;
+  }
+
+  function handleStudioInput(event) {
+    if (!studioState) return;
+    const inputControl = event.target.closest('[data-studio-prop]');
+    if (!inputControl) return;
+    const item = studioState.elements.find((entry) => entry.id === studioState.selectedId);
+    if (!item) return;
+    const property = inputControl.dataset.studioProp;
+    if (property === 'fontSize') {
+      const size = Number(inputControl.value);
+      if (!Number.isFinite(size) || size < 12 || size > 160) return;
+      item[property] = size;
+    } else item[property] = inputControl.value;
+    const node = $(`[data-studio-item="${item.id}"]`);
+    if (node) {
+      if (property === 'text') {
+        const textNode = [...node.childNodes].find((child) => child.nodeType === Node.TEXT_NODE);
+        if (textNode) textNode.textContent = item.text;
+        else node.insertBefore(document.createTextNode(item.text), node.firstChild);
+      }
+      studioItemStyle(item, node);
+    }
+    if (property === 'text') studioSyncLayerList();
+  }
+
+  async function handleStudioUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Choose a PNG, JPEG, or WebP image.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Choose an image smaller than 10 MB.');
+    const src = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('The selected image could not be read.'));
+      reader.readAsDataURL(file);
+    });
+    studioAdd('image', { src, text: file.name, width: 35, height: 30 });
+  }
+
   function output() {
     const result = el('div', 'tools-output');
     result.dataset.output = 'true';
@@ -296,6 +948,10 @@
   function renderTool(id) {
     const content = $('#tools-workspace-content');
     const fileAccept = 'image/jpeg,image/png,image/webp';
+    if (id === 'graphic-design-studio') {
+      renderGraphicDesignStudio(content);
+      return;
+    }
     if (id === 'business-email-transformer') {
       content.append(
         field('Rough notes or key points', (() => {
@@ -1001,6 +1657,14 @@
   }
 
   function handleWorkspaceClick(event) {
+    const studioAction = event.target.closest('[data-studio-action]')?.dataset.studioAction;
+    if (studioAction) {
+      handleStudioAction(studioAction, event).catch((error) => {
+        console.error('DIRA DESIGN STUDIO action failed:', error);
+        setStatus(error.message || 'The design action could not be completed.', 'error');
+      });
+      return;
+    }
     const action = event.target.closest('[data-tool-action]')?.dataset.toolAction;
     if (!action) return;
     try {
@@ -1146,7 +1810,9 @@
       });
       if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
-      setPaywallStatus('Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
+      setPaywallStatus(pendingToolId === 'graphic-design-studio'
+        ? 'KES 900 payment submitted for review. DIRA DESIGN STUDIO access will unlock after an administrator approves the M-Pesa transaction; open the tool again to continue.'
+        : 'Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
       if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
       console.error('Could not submit tool payment:', error);
@@ -1239,6 +1905,8 @@
 
   function init() {
     renderCards();
+    addStudioFlagshipCard();
+    enhanceToolVisuals();
     $('#tools-filter-nav').addEventListener('click', (event) => {
       const filter = event.target.closest('[data-tool-category]');
       if (filter) filterToolCategories(filter.dataset.toolCategory);
@@ -1253,6 +1921,35 @@
     });
     $('#tools-paywall-form').addEventListener('submit', submitPaywall);
     $('#tools-workspace-content').addEventListener('click', handleWorkspaceClick);
+    $('#tools-workspace-content').addEventListener('input', handleStudioInput);
+    $('#tools-workspace-content').addEventListener('focusin', (event) => {
+      if (event.target.matches('[data-studio-prop]') && studioState) studioCommit();
+    });
+    $('#tools-workspace-content').addEventListener('change', (event) => {
+      if (event.target.matches('[data-studio-upload]')) {
+        handleStudioUpload(event).catch((error) => {
+          console.error('DIRA DESIGN STUDIO image upload failed:', error);
+          setStatus(error.message || 'The image could not be added.', 'error');
+        });
+      } else if (event.target.matches('[data-studio-transparent]')) {
+        handleStudioAction('toggle-transparent', event).catch((error) => {
+          console.error('DIRA DESIGN STUDIO access check failed:', error);
+          setStatus(error.message || 'Could not verify Pro access.', 'error');
+        });
+      } else if (event.target.matches('[data-studio-size]')) {
+        const [width, height] = event.target.value.split('x').map(Number);
+        if (!width || !height) {
+          setStatus('Choose a valid canvas size.', 'error');
+          return;
+        }
+        studioCommit();
+        studioState.width = width;
+        studioState.height = height;
+        studioRenderScene();
+      }
+    });
+    document.addEventListener('pointermove', handleStudioPointerMove);
+    document.addEventListener('pointerup', handleStudioPointerUp);
     $('#tools-workspace-content').addEventListener('change', (event) => {
       if (event.target.matches('[data-check-index]')) saveChecklist(event.target.closest('[data-checklist]'));
     });

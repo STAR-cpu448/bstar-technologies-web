@@ -222,7 +222,7 @@ create table if not exists public.tool_subscriptions (
     'passport-photo', 'image-compress', 'image-resize', 'format-converter', 'image-crop',
     'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
     'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
-    'cv-checklist', 'business-checklist', 'business-email-transformer',
+    'cv-checklist', 'business-checklist', 'business-email-transformer', 'graphic-design-studio',
     '3d-modeler-maker', '3d-modeler-pro'
   )),
   mpesa_code text not null check (mpesa_code ~ '^[A-Z0-9]{8,20}$'),
@@ -258,15 +258,16 @@ alter table public.tool_subscriptions
     'passport-photo', 'image-compress', 'image-resize', 'format-converter', 'image-crop',
     'whatsapp-link', 'qr-generator', 'age-calculator', 'file-size', 'letter-maker',
     'vat-calculator', 'percentage-calculator', 'invoice-maker', 'mpesa-sheet',
-    'cv-checklist', 'business-checklist', 'business-email-transformer',
+    'cv-checklist', 'business-checklist', 'business-email-transformer', 'graphic-design-studio',
     '3d-modeler-maker', '3d-modeler-pro'
   )),
   add constraint tool_subscriptions_amount_kes_check check (
     (tool_id = 'business-email-transformer' and amount_kes = 50)
+    or (tool_id = 'graphic-design-studio' and amount_kes = 900)
     or (tool_id = '3d-modeler-maker' and amount_kes = 50)
     or (tool_id = '3d-modeler-pro' and amount_kes = 300)
     or (
-      tool_id not in ('business-email-transformer', '3d-modeler-maker', '3d-modeler-pro')
+      tool_id not in ('business-email-transformer', 'graphic-design-studio', '3d-modeler-maker', '3d-modeler-pro')
       and amount_kes = 10
     )
   );
@@ -289,9 +290,10 @@ create policy "Customers can submit pending tool payments"
     status = 'pending_approval'
     and (
       (tool_id = 'business-email-transformer' and amount_kes = 50)
+      or (tool_id = 'graphic-design-studio' and amount_kes = 900)
       or (tool_id = '3d-modeler-maker' and amount_kes = 50)
       or (tool_id = '3d-modeler-pro' and amount_kes = 300)
-      or (tool_id not in ('business-email-transformer', '3d-modeler-maker', '3d-modeler-pro') and amount_kes = 10)
+      or (tool_id not in ('business-email-transformer', 'graphic-design-studio', '3d-modeler-maker', '3d-modeler-pro') and amount_kes = 10)
     )
   );
 

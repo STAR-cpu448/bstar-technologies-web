@@ -2,7 +2,9 @@
 
 A responsive, dark-mode tech storefront with a sticky glass navbar, searchable/category-filtered catalog, local cart drawer, WhatsApp order handoff, and Supabase-backed admin dashboard.
 
-The Digital Utilities & Tools section includes 21 browser-based utilities. PDFs and images are processed locally in the browser; only tool-payment submissions are sent to Supabase. Each tool unlock is KES 10 and requires manual M-Pesa verification by an administrator.
+The Digital Utilities & Tools section includes browser-based utilities, including DIRA DESIGN STUDIO. PDFs, images, and designs are processed locally in the browser; only tool-payment submissions are sent to Supabase. Standard tool access is KES 10 and requires manual M-Pesa verification by an administrator.
+
+Tool cards and featured tools have distinct built-in SVG illustrations. Optional rendered artwork can override an illustration by adding `public/assets/tools/<tool-id>.webp` or `.png`; the storefront tries WebP first and falls back to PNG.
 
 ## Run locally
 
@@ -36,6 +38,8 @@ The viewer checks status and expiry server-side. Pending requests show payment i
 Digital Utilities access is purchased per tool. Customers submit their phone number and M-Pesa transaction code for KES 10; submissions remain `pending_approval` until an administrator verifies payment and selects **Enable Service** in the Store dashboard's Tool Subscriptions tab. The browser calls the `has_active_tool_subscription` RPC to check access; it does not trust a client-set active flag. The RPC returns only a boolean, while subscription records are visible/manageable only to store administrators. Payment verification and M-Pesa collection are manual; the browser does not initiate or confirm payments.
 
 The Business Email Transformer is available in Digital Utilities for KES 50. Customers submit their phone number and M-Pesa transaction code for manual administrator approval. After approval, the server verifies the matching active payment before returning an email with a subject, salutation, polished body, and sign-off. Its tone templates preserve the supplied details and do not call an external AI service. Run the updated `supabase-setup.sql` to enable this tool's KES 50 subscription and payment-verification RPC.
+
+DIRA DESIGN STUDIO provides an interactive canvas with text, shapes, local image uploads, layer controls, canvas-size presets, and PNG export in the browser. Access is KES 900 via M-Pesa Send Money to 0794940193; an administrator must approve the submitted phone number and transaction code before the editor opens. Re-run `supabase-setup.sql` in the Supabase SQL Editor to allow the Studio tool ID and KES 900 subscription amount before accepting requests.
 
 The standalone 3D Parametric Modeler is available at [`/modeler.html`](./modeler.html) and is linked from the home-page hero. It builds a closed hollow lantern mesh in the browser with Three.js, previews a non-exported lit bulb, and exports binary STL in millimeters. Each Maker / Personal export costs KES 50; each Pro / Commercial export costs KES 300 and enables wall-thickness and radial-segment controls. Payment requests are recorded in `tool_subscriptions` with the corresponding modeler license `tool_id`, `amount_kes`, and M-Pesa code; an administrator must approve the payment before export. The database marks each approved payment as consumed on its one STL export. Re-run [`supabase-setup.sql`](./supabase-setup.sql) to add the modeler license IDs, amount rules, `exported_at`, and payment RPCs. The modeler loads its pinned Three.js modules from jsDelivr, so browser access to that CDN is required.
 

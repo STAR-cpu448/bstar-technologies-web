@@ -620,12 +620,13 @@ const server = http.createServer((request, response) => {
     return;
   }
   const isAppRoute = !path.extname(relativePath);
-  if (!publicFiles.has(relativePath) && !isAppRoute) {
+  const isToolRenderAsset = /^assets[\\/]+tools[\\/]+[a-z0-9][a-z0-9-]*\.(?:webp|png)$/i.test(relativePath);
+  if (!publicFiles.has(relativePath) && !isAppRoute && !isToolRenderAsset) {
     sendText(response, 404, 'Not found');
     return;
   }
 
-  const staticFilePath = publicFiles.has(relativePath) ? filePath : path.join(publicDir, 'Index.html');
+  const staticFilePath = publicFiles.has(relativePath) || isToolRenderAsset ? filePath : path.join(publicDir, 'Index.html');
   fs.stat(staticFilePath, (statError, stats) => {
     if (statError || !stats.isFile()) {
       sendText(response, 404, 'Not found');
