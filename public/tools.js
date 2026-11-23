@@ -364,26 +364,6 @@
     return activeSubscription(phone, 'dira-design-studio');
   }
 
-  function reserveStudioTab() {
-    // Reserve the user-initiated tab before the asynchronous access check.
-    const popup = window.open('', '_blank');
-    if (popup) popup.opener = null;
-    return popup;
-  }
-
-  function closeStudioTab(popup) {
-    if (popup && !popup.closed) popup.close();
-  }
-
-  function redirectToStudioTemplate(popup) {
-    if (popup && !popup.closed) {
-      popup.location.replace(CANVA_TEAM_STUDIO_URL);
-      setStatus('Redirecting to your Canva template...', 'success');
-      return;
-    }
-    setStatus('Your Canva template is ready. If it did not open, use the direct link below.', 'success');
-  }
-
   async function activePayment(phone, toolId, code) {
     const client = await getClient();
     const { data, error } = await client.rpc('has_active_tool_payment', {
@@ -399,29 +379,25 @@
     pendingToolId = toolId;
     const rememberedPhone = localStorage.getItem(STORAGE_PHONE) || '';
     if (toolId === 'graphic-design-studio') {
-      const studioTab = rememberedPhone ? reserveStudioTab() : null;
       studioProEnabled = false;
       studioAccessChecking = Boolean(rememberedPhone);
-      openTool(toolId);
-      if (!rememberedPhone) return;
+      let accessCheckError;
       try {
-        const payerPhone = normalizeKenyanPayerPhone(rememberedPhone) || rememberedPhone;
-        studioProEnabled = await hasStudioAccess(payerPhone);
-        if ($('#tools-workspace').open && currentTool === toolId) {
-          studioAccessChecking = false;
-          renderGraphicDesignStudio($('#tools-workspace-content'));
-          if (studioProEnabled) redirectToStudioTemplate(studioTab);
-          else closeStudioTab(studioTab);
-        } else closeStudioTab(studioTab);
-      } catch (error) {
-        closeStudioTab(studioTab);
-        console.error('DIRA DESIGN STUDIO access check failed:', error);
-        if ($('#tools-workspace').open && currentTool === toolId) {
-          studioAccessChecking = false;
-          renderGraphicDesignStudio($('#tools-workspace-content'));
-          setStatus(`Studio access could not be checked: ${error.message}`, 'error');
+        if (rememberedPhone) {
+          const payerPhone = normalizeKenyanPayerPhone(rememberedPhone) || rememberedPhone;
+          studioProEnabled = await hasStudioAccess(payerPhone);
+          if (studioProEnabled) {
+            window.location.assign(CANVA_TEAM_STUDIO_URL);
+            return;
+          }
         }
+      } catch (error) {
+        accessCheckError = error;
+        console.error('DIRA DESIGN STUDIO access check failed:', error);
       }
+      studioAccessChecking = false;
+      openTool(toolId);
+      if (accessCheckError) setStatus(`Studio access could not be checked: ${accessCheckError.message}`, 'error');
       return;
     }
     if (rememberedPhone && toolId !== 'business-email-transformer') {
@@ -736,21 +712,19 @@
     form.elements.phone.focus();
   }
 
-  async function studioRequirePro(popup = null) {
+  async function studioRequirePro() {
     if (studioProEnabled) {
-      redirectToStudioTemplate(popup);
+      window.location.assign(CANVA_TEAM_STUDIO_URL);
       return true;
     }
     try {
       if (await studioCheckPro()) {
-        redirectToStudioTemplate(popup);
+        window.location.assign(CANVA_TEAM_STUDIO_URL);
         return true;
       }
-      closeStudioTab(popup);
       studioOpenProPayment();
       return false;
     } catch (error) {
-      closeStudioTab(popup);
       console.error('DIRA DESIGN STUDIO access check failed:', error);
       setStatus(`Could not check studio access: ${error.message}`, 'error');
       return false;
@@ -1697,9 +1671,7 @@
   function handleWorkspaceClick(event) {
     const studioUnlock = event.target.closest('[data-tool-action="unlock-studio"]');
     if (studioUnlock) {
-      const popup = localStorage.getItem(STORAGE_PHONE) ? reserveStudioTab() : null;
-      studioRequirePro(popup).catch((error) => {
-        closeStudioTab(popup);
+      studioRequirePro().catch((error) => {
         console.error('DIRA DESIGN STUDIO access check failed:', error);
         setStatus(`Could not check studio access: ${error.message}`, 'error');
       });
