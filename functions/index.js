@@ -1,11 +1,59 @@
 const functions = require("firebase-functions");
 const express = require("express");
-const cors = require("cors");
 require("dotenv").config();
+const {
+  SECURITY_HEADERS,
+  createAllowedOrigins,
+  createRateLimiter,
+  getRateLimitPolicy,
+} = require('./security-utils');
 
 const app = express();
-app.use(cors({ origin: true }));
-app.use(express.json());
+const allowedOrigins = createAllowedOrigins(
+  [
+    'https://bstartechnologies-da1fe.web.app',
+    'https://bstartechnologies-da1fe.firebaseapp.com',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'http://localhost:10000',
+    'http://127.0.0.1:10000',
+  ],
+  process.env.CORS_ALLOWED_ORIGINS || '',
+  process.env.QR_ALLOWED_ORIGINS || '',
+  process.env.DIRA_IMAGE_ALLOWED_ORIGINS || '',
+);
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
+
+app.use((req, res, next) => {
+  for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
+    res.setHeader(header, value);
+  }
+  const origin = req.get('Origin');
+  if (origin && !allowedOrigins.has(origin)) {
+    return res.status(403).json({ error: 'This website is not allowed to access this API.' });
+  }
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey');
+    res.setHeader('Access-Control-Max-Age', '600');
+    return res.status(204).end();
+  }
+  return next();
+});
+
+const enforceRateLimit = createRateLimiter({ trustProxy: true });
+app.use((req, res, next) => {
+  const policy = getRateLimitPolicy(req.method, req.path);
+  if (policy && !enforceRateLimit(req, res, `${req.method} ${req.path}`, policy)) return;
+  return next();
+});
+app.use(express.json({ limit: '32kb', strict: true }));
 
 const supabaseUrl = 'https://mwnburzestcooeyyuwow.supabase.co';
 const supabaseAnonKey = 'sb_publishable_ReqFerJTxI8vYQ2X7yJKcg_VGUo1J2p';
@@ -69,6 +117,7 @@ function imageQrPage(title, message, options = {}) {
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#080b12">
   <title>${escapeHtml(title)} — DIRA PULSE TECHNOLOGIES</title>
+  <script src="/security-diagnostics.js?v=2"></script>
   <style>
     :root{color-scheme:dark;--bg:#080b12;--panel:#111620;--line:rgba(255,255,255,.1);--text:#f5f7fb;--muted:#a0a6b3;--lime:#c7f24d}
     *{box-sizing:border-box}body{min-height:100vh;margin:0;padding:24px;background:radial-gradient(ellipse at 50% 0,rgba(199,242,77,.08),transparent 48%),var(--bg);color:var(--text);font:15px/1.6 "DM Sans",system-ui,sans-serif}
@@ -97,7 +146,11 @@ function imageQrPage(title, message, options = {}) {
         const blob = await response.blob(); const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement('a'); link.href = objectUrl; link.download = image.dataset.downloadName;
         document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
-      } catch (error) { window.open(document.querySelector('.qr-image').src, '_blank', 'noopener,noreferrer'); } finally { button.disabled = false; }
+      } catch (error) {
+        const imageUrl = document.querySelector('.qr-image').src;
+        window.DIRASecurityDiagnostics?.reportNavigationAttempt(imageUrl, 'QR image open fallback');
+        window.open(imageUrl, '_blank', 'noopener,noreferrer');
+      } finally { button.disabled = false; }
     });
   </script>` : ''}
 </body>
@@ -118,8 +171,12 @@ async function callSupabaseRpc(name, body) {
 // --- API ENDPOINTS ---
 
 app.post('/api/email/transform', async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object.' });
+  }
   const { roughText, tone, audience, phone, mpesaCode } = req.body;
-  if (!roughText || typeof roughText !== 'string' || roughText.length > 6000) return res.status(400).json({ error: 'Enter rough notes between 1 and 6,000 characters.' });
+  if (typeof roughText !== 'string' || !roughText.trim() || roughText.length > 6000) return res.status(400).json({ error: 'Enter rough notes between 1 and 6,000 characters.' });
+  if (!roughText.split(/\r?\n/).some((line) => line.replace(/^(?:[-*•]|\d+[.)])\s+/, '').trim())) return res.status(400).json({ error: 'Add at least one note or key point to transform.' });
   if (!['formal', 'diplomatic', 'urgent', 'decline'].includes(tone)) return res.status(400).json({ error: 'Select a supported email tone.' });
   if (!['client', 'supplier', 'investor', 'colleague'].includes(audience)) return res.status(400).json({ error: 'Select a supported target audience.' });
   if (!phone || typeof phone !== 'string' || !/^[0-9]{9,15}$/.test(phone)) return res.status(400).json({ error: 'Enter the phone number used for your payment.' });
@@ -139,10 +196,13 @@ app.post('/api/email/transform', async (req, res) => {
 });
 
 app.post('/api/modeler/payment', async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object.' });
+  }
   const { tier: tierName, phone: rawPhone, mpesaCode: rawCode, amount_kes } = req.body;
   const tier = MODELER_TIERS.get(tierName);
-  const phone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
-  const mpesaCode = rawCode ? rawCode.trim().toUpperCase() : '';
+  const phone = typeof rawPhone === 'string' ? rawPhone.replace(/\D/g, '') : '';
+  const mpesaCode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
 
   if (!tier || amount_kes !== tier.amount) return res.status(400).json({ error: 'Select a valid modeler license and matching price.' });
   if (!/^[0-9]{9,15}$/.test(phone)) return res.status(400).json({ error: 'Enter the phone number used for your M-Pesa payment.' });
@@ -171,11 +231,18 @@ app.post('/api/modeler/payment', async (req, res) => {
 });
 
 app.post('/api/modeler/export', async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object.' });
+  }
   const { tier: tierName, phone: rawPhone, mpesaCode: rawCode, amount_kes } = req.body;
   const tier = MODELER_TIERS.get(tierName);
-  const phone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
-  const mpesaCode = rawCode ? rawCode.trim().toUpperCase() : '';
-  if (!tier || !phone || !mpesaCode) return res.status(400).json({ error: 'Invalid payload' });
+  const phone = typeof rawPhone === 'string' ? rawPhone.replace(/\D/g, '') : '';
+  const mpesaCode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+  if (!tier || amount_kes !== tier.amount
+    || !/^[0-9]{9,15}$/.test(phone)
+    || !/^[A-Z0-9]{8,20}$/.test(mpesaCode)) {
+    return res.status(400).json({ error: 'Enter a valid modeler license, payment phone, transaction code, and matching price.' });
+  }
 
   try {
     const consumed = await callSupabaseRpc('consume_modeler_export_payment', {
@@ -222,6 +289,12 @@ app.get('/img-qr/:code', async (req, res) => {
     }
 
     const imageUrl = new URL(record.image_url);
+    const projectOrigin = new URL(supabaseUrl).origin;
+    if (imageUrl.protocol !== 'https:' || imageUrl.origin !== projectOrigin
+      || !imageUrl.pathname.startsWith('/storage/v1/object/public/qr-images/uploads/')
+      || imageUrl.search || imageUrl.hash) {
+      throw new Error('The hosted image URL failed validation.');
+    }
     res.status(200).send(imageQrPage('Your shared image', 'This image was shared with DIRA PULSE Dynamic Image QR.', {
       imageUrl: imageUrl.href,
       downloadName: `${code}.${imageUrl.pathname.match(/\.(jpe?g|png|webp)$/i)?.[1] || 'jpg'}`,

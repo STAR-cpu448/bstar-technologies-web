@@ -3,13 +3,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const storeConfig = require('./public/supabase-config.js');
+const {
+  SECURITY_HEADERS,
+  createAllowedOrigins,
+  createRateLimiter,
+  getRateLimitPolicy,
+} = require('./functions/security-utils');
 
 const root = __dirname;
 const publicDir = path.join(root, 'public');
 const port = Number(process.env.PORT || 10000);
 const supabaseUrl = process.env.SUPABASE_URL || storeConfig.url;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
-const qrAllowedOrigins = new Set([
+const supabaseKey = process.env.SUPABASE_ANON_KEY || storeConfig.anonKey;
+const defaultAllowedOrigins = [
   'https://bstartechnologies-da1fe.web.app',
   'https://bstartechnologies-da1fe.firebaseapp.com',
   'http://localhost:5000',
@@ -18,12 +24,20 @@ const qrAllowedOrigins = new Set([
   'http://127.0.0.1:5500',
   'http://localhost:10000',
   'http://127.0.0.1:10000',
-  ...(process.env.QR_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
-]);
-const diraImageAllowedOrigins = new Set([
-  ...qrAllowedOrigins,
-  ...(process.env.DIRA_IMAGE_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
-]);
+];
+const qrAllowedOrigins = createAllowedOrigins(
+  defaultAllowedOrigins,
+  process.env.CORS_ALLOWED_ORIGINS || '',
+  process.env.QR_ALLOWED_ORIGINS || '',
+);
+const diraImageAllowedOrigins = createAllowedOrigins(
+  defaultAllowedOrigins,
+  process.env.CORS_ALLOWED_ORIGINS || '',
+  process.env.QR_ALLOWED_ORIGINS || '',
+  process.env.DIRA_IMAGE_ALLOWED_ORIGINS || '',
+);
+const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.RENDER === 'true';
+const enforceRateLimit = createRateLimiter({ trustProxy });
 const diraImageApiPaths = new Set([
   '/api/image/generate',
   '/api/image/pro/access',
@@ -47,7 +61,7 @@ const DIRA_IMAGE_ASPECT_SIZES = new Map([
   ['4:5', '1024x1280'],
   ['16:9', '1536x864'],
 ]);
-const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html', 'voice-assistant.js', 'voice-assistant.css']);
+const publicFiles = new Set(['Index.html', 'app.js', 'tools.js', 'styles.css', 'supabase-config.js', 'modeler.html', 'voice-assistant.js', 'voice-assistant.css', 'security-diagnostics.js']);
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],
@@ -80,6 +94,10 @@ function sendJson(response, status, payload) {
 }
 
 async function readJson(request, maxBytes = 12000) {
+  const mediaType = String(request.headers['content-type'] || '').split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    throw new Error('Content-Type must be application/json.');
+  }
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
@@ -666,9 +684,10 @@ async function handleCreateImageQr(request, response) {
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase URL or key is not configured.');
     }
-    if (!payload || !/^IMG-[A-Z0-9]{6}$/.test(payload.code || '')
-      || !/^[0-9]{9,15}$/.test(payload.phone || '')
-      || !/^[A-Z0-9]{8,20}$/.test(payload.mpesaCode || '')
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+      || typeof payload.code !== 'string' || !/^IMG-[A-Z0-9]{6}$/.test(payload.code)
+      || typeof payload.phone !== 'string' || !/^[0-9]{9,15}$/.test(payload.phone)
+      || typeof payload.mpesaCode !== 'string' || !/^[A-Z0-9]{8,20}$/.test(payload.mpesaCode)
       || typeof payload.imageUrl !== 'string'
       || payload.amount !== 99) {
       sendJson(response, 400, { error: 'Check the QR code details, phone number, M-Pesa confirmation code and KES 99 amount.' });
@@ -773,6 +792,7 @@ function imageQrPage(title, message, options = {}) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b12">
   <title>${escapeHtml(title)} — DIRA PULSE TECHNOLOGIES</title>
+  <script src="/security-diagnostics.js?v=2"></script>
   <style>
     :root{color-scheme:dark;--bg:#080b12;--panel:#111620;--line:rgba(255,255,255,.1);--text:#f5f7fb;--muted:#a0a6b3;--lime:#c7f24d}
     *{box-sizing:border-box}body{min-height:100vh;margin:0;padding:24px;background:radial-gradient(ellipse at 50% 0,rgba(199,242,77,.08),transparent 48%),var(--bg);color:var(--text);font:15px/1.6 "DM Sans",system-ui,sans-serif}
@@ -817,7 +837,9 @@ function imageQrPage(title, message, options = {}) {
         link.remove();
         URL.revokeObjectURL(objectUrl);
       } catch (error) {
-        window.open(document.querySelector('.qr-image').src, '_blank', 'noopener,noreferrer');
+        const imageUrl = document.querySelector('.qr-image').src;
+        window.DIRASecurityDiagnostics?.reportNavigationAttempt(imageUrl, 'QR image open fallback');
+        window.open(imageUrl, '_blank', 'noopener,noreferrer');
       } finally {
         button.disabled = false;
       }
@@ -936,6 +958,9 @@ async function handleQrRedirect(response, code) {
 }
 
 const server = http.createServer((request, response) => {
+  for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
+    response.setHeader(header, value);
+  }
   console.log(`[ROUTE HIT] ${request.method} ${request.url}`);
   if (diraImageApiPaths.has(request.url) && ['OPTIONS', 'POST'].includes(request.method)) {
     const origin = request.headers.origin;
@@ -974,6 +999,11 @@ const server = http.createServer((request, response) => {
       response.end();
       return;
     }
+  }
+  const requestPath = request.url.split('?', 1)[0];
+  const rateLimitPolicy = getRateLimitPolicy(request.method, requestPath);
+  if (rateLimitPolicy && !enforceRateLimit(request, response, `${request.method} ${requestPath}`, rateLimitPolicy)) {
+    return;
   }
   if (request.method === 'POST' && request.url === '/api/email/transform') {
     void handleEmailTransform(request, response);

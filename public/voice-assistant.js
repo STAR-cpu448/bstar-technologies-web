@@ -9,11 +9,28 @@
   const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   const isSameOriginImageBackend = (isLocalHost && LOCAL_BACKEND_PORTS.has(window.location.port))
     || window.location.hostname === 'bstar-technologies-web-azkl.onrender.com';
-  const imageApiBaseUrl = (typeof configuredImageApiBaseUrl === 'string' && configuredImageApiBaseUrl.trim())
-    ? configuredImageApiBaseUrl.trim().replace(/\/+$/, '')
-    : isSameOriginImageBackend
-      ? window.location.origin
-      : RENDER_IMAGE_API_BASE_URL;
+  const defaultImageApiBaseUrl = isSameOriginImageBackend ? window.location.origin : RENDER_IMAGE_API_BASE_URL;
+
+  function resolveImageApiBaseUrl(value) {
+    if (typeof value !== 'string' || !value.trim()) return defaultImageApiBaseUrl;
+    let url;
+    try {
+      url = new URL(value.trim(), window.location.origin);
+    } catch {
+      console.warn('[DIRA security diagnostics] Invalid image API base URL; using the configured HTTPS backend.');
+      return defaultImageApiBaseUrl;
+    }
+    const isLoopbackTarget = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    const isAllowedHttp = url.protocol === 'http:'
+      && (url.origin === window.location.origin || (isLocalHost && isLoopbackTarget));
+    if (url.protocol !== 'https:' && !isAllowedHttp) {
+      console.warn('[DIRA security diagnostics] Refusing insecure image API base URL; using the configured HTTPS backend.', `${url.origin}${url.pathname}`);
+      return defaultImageApiBaseUrl;
+    }
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+  }
+
+  const imageApiBaseUrl = resolveImageApiBaseUrl(configuredImageApiBaseUrl);
   const TOOL_PHONE_STORAGE_KEY = 'bstar-tools-phone-v1';
   const IMAGE_PRO_PRICE_KES = 700;
   const IMAGE_PRO_MONTHLY_LIMIT = 60;
@@ -500,7 +517,9 @@
       return;
     }
     if (target.type === 'contact') {
-      window.location.assign(`https://wa.me/${normalizePhoneForWhatsApp()}`);
+      const url = `https://wa.me/${normalizePhoneForWhatsApp()}`;
+      window.DIRASecurityDiagnostics?.reportNavigationAttempt(url, 'DIRA contact navigation');
+      window.location.assign(url);
       return;
     }
     if (target.type === 'modeler') {

@@ -968,6 +968,7 @@ async function updateDynamicQrCode(code, action, notificationWindow) {
   if (action === 'activate') {
     const whatsappUrl = dynamicQrWhatsAppLink(qrCode);
     if (notificationWindow && !notificationWindow.closed) {
+      window.DIRASecurityDiagnostics?.reportNavigationAttempt(whatsappUrl, 'Dynamic QR activation notification');
       notificationWindow.location.href = whatsappUrl;
     } else {
       showAdminStatus(`Image QR ${code} activated. Use the WhatsApp notification link in the refreshed row.`, 'success');
@@ -1228,6 +1229,7 @@ async function checkout() {
   }, 0);
   const text = `Hello DIRA PULSE TECHNOLOGIES! I'd like to order:\n\n${lines.join('\n')}\n\nSubtotal: ${money.format(total)}\nPlease confirm availability, delivery and payment details.`;
   const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+  window.DIRASecurityDiagnostics?.reportNavigationAttempt(url, 'Cart checkout');
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
