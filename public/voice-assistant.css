@@ -308,9 +308,16 @@
 }
 
 .voice-assistant-mic {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  touch-action: manipulation;
+}
+
+.voice-assistant-mic:focus-visible {
+  outline: 2px solid rgba(112, 215, 240, 0.9);
+  outline-offset: 2px;
 }
 
 .voice-assistant-mic > span:first-child {
@@ -340,6 +347,7 @@
   color: var(--va-muted);
   font-size: 10px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .voice-assistant-audio-controls {
@@ -1044,7 +1052,8 @@
   .voice-assistant-widget .voice-assistant-orb::after,
   .voice-assistant-widget .voice-assistant-orb__ribbon,
   .voice-assistant-widget .voice-assistant-orb__core,
-  .voice-assistant-widget .voice-assistant-launcher::before {
+  .voice-assistant-widget .voice-assistant-launcher::before,
+  .voice-assistant-widget .voice-assistant-mic.is-listening > span:first-child {
     animation: none !important;
   }
 }
@@ -1199,7 +1208,7 @@
 
 @media (max-height: 560px) {
   .voice-assistant-panel {
-    gap: 6px;
+    gap: 4px;
     padding-block: 8px;
   }
 
@@ -1214,7 +1223,9 @@
 
   .voice-assistant-form textarea {
     min-height: 42px;
-    max-height: 62px;
+    max-height: 56px;
+    padding-block: 7px;
+    resize: none;
   }
 
   .voice-assistant-compose-actions {
@@ -1224,15 +1235,27 @@
   .voice-assistant-mic-note {
     margin-top: 3px;
     font-size: 9px;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .voice-assistant-audio-controls .voice-assistant-text-button {
+    min-height: 26px;
+    padding-inline: 8px;
   }
 
   .voice-assistant-image-studio summary,
   .voice-assistant-shortcuts summary {
-    padding-block: 5px;
+    padding-block: 2px;
   }
 
   .voice-assistant-status:not(:empty) {
-    max-height: 42px;
+    flex: 0 0 auto;
+    max-height: 32px;
+    font-size: 9px;
+    line-height: 1.25;
     overflow-y: auto;
   }
 }
