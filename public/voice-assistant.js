@@ -64,7 +64,7 @@
           </div>
           <button class="voice-assistant-icon-button" type="button" data-va-action="close" aria-label="Close assistant">×</button>
         </header>
-        <p class="voice-assistant-device-note">Press <strong>Alt+D</strong> or <strong>/</strong> outside a text field to open or close DIRA. A browser page cannot be opened by a device’s physical power button; that button is controlled by your device.</p>
+        <p class="voice-assistant-device-note">Press <strong>Alt+D</strong> or <strong>/</strong> outside a text field to open or close DIRA.</p>
         <div class="voice-assistant-status" data-va-status role="status" aria-live="polite"></div>
         <div class="voice-assistant-messages" data-va-messages role="log" aria-live="polite" aria-relevant="additions text"></div>
         <form class="voice-assistant-form" data-va-form>
@@ -205,7 +205,6 @@
   }
 
   function showPanel() {
-    window.dispatchEvent(new CustomEvent('dira-assistant-open'));
     window.clearTimeout(panelCloseTimer);
     const panel = $('#voice-assistant-panel');
     if (panel.hidden) {
@@ -219,6 +218,8 @@
     panel.hidden = false;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
     root.classList.add('is-open', 'is-energized');
+    syncPageScrollLock();
+    window.dispatchEvent(new CustomEvent('dira-assistant-open'));
     root.classList.remove('is-visible');
     window.cancelAnimationFrame(panelAnimationFrame);
     panelAnimationFrame = window.requestAnimationFrame(() => {
@@ -248,6 +249,19 @@
       : $('#voice-assistant-launcher');
     focusTarget.focus();
     window.dispatchEvent(new CustomEvent('dira-assistant-close'));
+    syncPageScrollLock();
+  }
+
+  function syncPageScrollLock() {
+    const cart = document.getElementById('cart-drawer');
+    if (root.classList.contains('is-open')
+      || document.querySelector('dialog[open]')
+      || document.body.classList.contains('qr-viewer-open')
+      || (cart && !cart.hidden)) {
+      document.body.classList.add('panel-open');
+    } else {
+      document.body.classList.remove('panel-open');
+    }
   }
 
   function isTypingTarget(target) {

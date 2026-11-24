@@ -1048,3 +1048,191 @@
     animation: none !important;
   }
 }
+
+.voice-assistant-widget.is-open .voice-assistant-backdrop {
+  z-index: 9998;
+  background: rgba(4, 7, 13, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.voice-assistant-panel {
+  z-index: 9999;
+  display: flex;
+  height: min(88dvh, 760px);
+  min-height: min(420px, 88dvh);
+  max-height: 88dvh;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0b101b;
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.voice-assistant-header {
+  flex: 0 0 auto;
+  margin: -16px -16px 0;
+  padding: 10px 14px;
+}
+
+.voice-assistant-device-note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+}
+
+.voice-assistant-status {
+  flex: 0 0 auto;
+  padding-inline: 0;
+}
+
+.voice-assistant-status:not([hidden]) {
+  padding-top: 0;
+}
+
+.voice-assistant-status:empty {
+  display: none;
+}
+
+.voice-assistant-messages {
+  width: 100%;
+  min-height: 120px;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: #080d16;
+}
+
+.voice-assistant-form,
+.voice-assistant-audio-controls,
+.voice-assistant-shortcuts {
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.voice-assistant-form {
+  padding: 10px 0 0;
+  background: transparent;
+}
+
+.voice-assistant-audio-controls {
+  padding: 0;
+}
+
+.voice-assistant-shortcuts {
+  max-height: 190px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
+  height: min(88dvh, 760px);
+  min-height: 0;
+  max-height: 88dvh;
+  grid-template-rows: none;
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-image-studio {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-image-content {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 640px) {
+  .voice-assistant-panel {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    height: 88dvh;
+    min-height: min(380px, 88dvh);
+    max-height: 88dvh;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .voice-assistant-header {
+    min-height: 58px;
+    margin: -12px -12px 0;
+    padding: 7px 12px;
+  }
+
+  .voice-assistant-device-note {
+    display: none;
+  }
+
+  .voice-assistant-messages {
+    min-height: 120px;
+    padding: 10px;
+  }
+
+  .voice-assistant-form {
+    padding-top: 8px;
+  }
+
+  .voice-assistant-form textarea {
+    min-height: 52px;
+    max-height: 88px;
+  }
+
+  .voice-assistant-mic-note {
+    margin-top: 5px;
+  }
+
+  .voice-assistant-shortcuts summary {
+    padding: 8px 10px;
+  }
+
+  .voice-assistant-shortcut-content {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-height: 560px) {
+  .voice-assistant-panel {
+    gap: 6px;
+    padding-block: 8px;
+  }
+
+  .voice-assistant-header {
+    min-height: 50px;
+    margin-top: -8px;
+  }
+
+  .voice-assistant-form {
+    padding-top: 4px;
+  }
+
+  .voice-assistant-form textarea {
+    min-height: 42px;
+    max-height: 62px;
+  }
+
+  .voice-assistant-compose-actions {
+    margin-top: 5px;
+  }
+
+  .voice-assistant-mic-note {
+    margin-top: 3px;
+    font-size: 9px;
+  }
+
+  .voice-assistant-image-studio summary,
+  .voice-assistant-shortcuts summary {
+    padding-block: 5px;
+  }
+
+  .voice-assistant-status:not(:empty) {
+    max-height: 42px;
+    overflow-y: auto;
+  }
+}
