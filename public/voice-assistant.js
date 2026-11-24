@@ -20,8 +20,13 @@
   const IMAGE_BASE_DAILY_LIMIT = 5;
   const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
   const PANEL_TRANSITION_MS = prefersReducedMotion ? 0 : 320;
+  const RECOGNITION_HANDOFF_MS = 150;
+  const RECOGNITION_WATCHDOG_MS = 8000;
   let root;
   let recognition;
+  let recognitionHandoffTimer;
+  let recognitionWatchdogTimer;
+  let recognitionAttemptId = 0;
   let panelCloseTimer;
   let panelAnimationFrame;
   let lastFocusedElement;
@@ -234,20 +239,13 @@
     if (panel.hidden) return;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'false');
     root.classList.remove('is-open', 'is-visible');
-    if (listening && recognition) {
-      submitVoiceTranscript = false;
+    submitVoiceTranscript = false;
+    if (recognition) {
       updateListeningState(false);
-      try {
-        if (typeof recognition.abort === 'function') recognition.abort();
-        else recognition.stop();
-      } catch (error) {
-        console.warn('Speech recognition could not stop when the assistant closed:', error);
-        try {
-          recognition.stop();
-        } catch (stopError) {
-          console.warn('Speech recognition could not stop after abort failed:', stopError);
-        }
-      }
+      retireRecognition(recognition, true);
+    } else {
+      clearRecognitionTimers();
+      if (listening) updateListeningState(false);
     }
     window.cancelAnimationFrame(panelAnimationFrame);
     panelAnimationFrame = undefined;
@@ -460,8 +458,9 @@
     utterance.lang = document.documentElement.lang || 'en';
     utterance.onstart = () => { $('[data-va-action="stop-speaking"]').disabled = false; };
     utterance.onend = () => { $('[data-va-action="stop-speaking"]').disabled = true; };
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
       $('[data-va-action="stop-speaking"]').disabled = true;
+      if (event.error === 'canceled' || event.error === 'interrupted') return;
       setStatus('Text is available; spoken output could not start.', 'error');
     };
     window.speechSynthesis.speak(utterance);
@@ -518,43 +517,133 @@
     form.querySelector('button[type="submit"]')?.click();
   }
 
-  function setupRecognition() {
-    const mic = $('[data-va-action="mic"]');
+  function getSpeechRecognitionConstructor() {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (typeof SpeechRecognition !== 'function') {
-        const message = "Live voice input isn't supported in this browser or in-app browser. Type your message below.";
-        mic.disabled = true;
-        mic.title = 'Live speech recognition is not supported in this browser.';
-        mic.setAttribute('aria-label', 'Voice input unavailable');
-        $('[data-va-mic-note]').textContent = message;
-        setStatus(message, 'unsupported');
-        return;
-      }
+      return typeof SpeechRecognition === 'function' ? SpeechRecognition : null;
+    } catch (error) {
+      console.warn('Speech recognition could not be detected:', error);
+      return null;
+    }
+  }
 
-      recognition = new SpeechRecognition();
-      if (!recognition || typeof recognition.start !== 'function' || typeof recognition.stop !== 'function') {
+  function clearRecognitionTimers() {
+    window.clearTimeout(recognitionHandoffTimer);
+    window.clearTimeout(recognitionWatchdogTimer);
+    recognitionHandoffTimer = undefined;
+    recognitionWatchdogTimer = undefined;
+  }
+
+  function abortRecognitionInstance(instance, warning) {
+    if (!instance) return;
+    try {
+      if (typeof instance.abort === 'function') instance.abort();
+      else instance.stop();
+    } catch (error) {
+      console.warn(warning, error);
+      try {
+        if (typeof instance.stop === 'function') instance.stop();
+      } catch (stopError) {
+        console.warn('Speech recognition could not stop after abort failed:', stopError);
+      }
+    }
+  }
+
+  function retireRecognition(instance, abort = false) {
+    if (recognition === instance) {
+      recognition = null;
+      recognitionAttemptId += 1;
+      clearRecognitionTimers();
+    }
+    if (abort) abortRecognitionInstance(instance, 'Speech recognition could not abort:');
+  }
+
+  function markRecognitionUnavailable() {
+    const mic = $('[data-va-action="mic"]');
+    const message = "Live voice input isn't supported in this browser or in-app browser. Type your message below.";
+    mic.disabled = true;
+    mic.title = 'Live speech recognition is not supported in this browser.';
+    mic.setAttribute('aria-label', 'Voice input unavailable');
+    $('[data-va-mic-note]').textContent = message;
+    setStatus(message, 'unsupported');
+  }
+
+  function setupRecognition() {
+    const mic = $('[data-va-action="mic"]');
+    if (!getSpeechRecognitionConstructor()) {
+      markRecognitionUnavailable();
+      return;
+    }
+    mic.disabled = false;
+    mic.title = 'Start voice input';
+    mic.setAttribute('aria-label', 'Start voice input');
+  }
+
+  function releaseAudioOutput() {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch (error) {
+      console.warn('Speech output could not be cancelled before microphone input:', error);
+    }
+
+    document.querySelectorAll('audio, video').forEach((media) => {
+      if (media.paused || media.ended || media.muted || media.volume === 0) return;
+      try {
+        media.pause();
+        if (Number.isFinite(media.duration) && media.duration > 0) media.currentTime = 0;
+      } catch (error) {
+        console.warn('Media playback could not be reset before microphone input:', error);
+      }
+    });
+  }
+
+  function startRecognition() {
+    if (recognition) retireRecognition(recognition, true);
+    else clearRecognitionTimers();
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      markRecognitionUnavailable();
+      return;
+    }
+
+    let session;
+    try {
+      session = new SpeechRecognition();
+      if (!session || typeof session.start !== 'function' || typeof session.stop !== 'function') {
         throw new TypeError('SpeechRecognition is missing required methods.');
       }
-      recognition.lang = navigator.language || 'en-KE';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.onstart = () => {
+      session.lang = navigator.language || 'en-KE';
+      session.continuous = false;
+      session.interimResults = true;
+      recognition = session;
+      recognitionAttemptId += 1;
+      const attemptId = recognitionAttemptId;
+      const isCurrentSession = () => recognition === session && recognitionAttemptId === attemptId;
+
+      session.onstart = () => {
+        if (!isCurrentSession()) return;
         updateListeningState(true);
         $('[data-va-mic-note]').textContent = 'Type a message, or tap Speak to use voice input.';
         setStatus('Listening… Speak now.', 'listening');
+        armRecognitionWatchdogForCurrentSession();
       };
-      recognition.onresult = (event) => {
+      session.onresult = (event) => {
+        if (!isCurrentSession()) return;
+        armRecognitionWatchdogForCurrentSession();
         let interim = '';
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
-          const transcript = event.results[index][0].transcript;
-          if (event.results[index].isFinal) finalTranscript += `${transcript} `;
+          const result = event.results[index];
+          const transcript = result?.[0]?.transcript;
+          if (typeof transcript !== 'string') continue;
+          if (result.isFinal) finalTranscript += `${transcript} `;
           else interim += transcript;
         }
         $('[data-va-input]').value = `${finalTranscript}${interim}`.trimStart();
         if (interim) setStatus(`Listening… ${interim}`, 'listening');
       };
-      recognition.onerror = (event) => {
+      session.onerror = (event) => {
+        if (!isCurrentSession()) return;
         submitVoiceTranscript = false;
         updateListeningState(false);
         const messages = {
@@ -588,18 +677,21 @@
         } else if (event.error === 'audio-capture') {
           $('[data-va-mic-note]').textContent = 'No mic available. Check its connection/site settings or type below.';
         }
+        retireRecognition(session, true);
         setStatus(feedback.message, feedback.state);
       };
-      recognition.onend = () => {
-        updateListeningState(false);
+      session.onend = () => {
+        if (!isCurrentSession()) return;
         const transcript = finalTranscript.trim();
-        if (submitVoiceTranscript && transcript) {
-          submitVoiceTranscript = false;
+        const shouldSubmit = submitVoiceTranscript && Boolean(transcript);
+        submitVoiceTranscript = false;
+        updateListeningState(false);
+        retireRecognition(session);
+        if (shouldSubmit) {
           $('[data-va-input]').value = transcript;
           submitAssistantForm();
           return;
         }
-        submitVoiceTranscript = false;
         if (!root.classList.contains('is-open')) return;
         const state = $('[data-va-status]').dataset.state;
         if (state === 'error' || state === 'unsupported' || state === 'notice') return;
@@ -610,51 +702,87 @@
         }
       };
     } catch (error) {
+      if (session) {
+        if (recognition === session) retireRecognition(session, true);
+        else abortRecognitionInstance(session, 'Speech recognition could not abort after setup failed:');
+      }
+      submitVoiceTranscript = false;
+      updateListeningState(false);
       console.warn('Speech recognition could not be initialized:', error);
-      mic.disabled = true;
-      mic.title = 'Voice input could not be initialized.';
-      mic.setAttribute('aria-label', 'Voice input unavailable');
-      const message = "Live voice input isn't available in this browser or webview. Type your message below.";
-      $('[data-va-mic-note]').textContent = message;
-      setStatus(message, 'unsupported');
+      setStatus("Live voice input couldn't be prepared. Tap Speak to retry or type below.", 'error');
+      return;
     }
+
+    finalTranscript = '';
+    submitVoiceTranscript = true;
+    $('[data-va-input]').value = '';
+    $('[data-va-mic-note]').textContent = 'Type a message, or tap Speak to use voice input.';
+    setStatus('Preparing microphone…', 'listening');
+    updateListeningState(true);
+    releaseAudioOutput();
+    armRecognitionWatchdogForCurrentSession();
+
+    const activeSession = recognition;
+    const attemptId = recognitionAttemptId;
+    const handoffTimer = window.setTimeout(() => {
+      if (recognition !== activeSession || recognitionAttemptId !== attemptId) return;
+      if (recognitionHandoffTimer === handoffTimer) recognitionHandoffTimer = undefined;
+      try {
+        activeSession.start();
+      } catch (error) {
+        if (recognition !== activeSession || recognitionAttemptId !== attemptId) return;
+        submitVoiceTranscript = false;
+        updateListeningState(false);
+        retireRecognition(activeSession, true);
+        console.warn('Speech recognition could not start:', error);
+        setStatus('Voice input could not start—check microphone permission or type below.', 'error');
+      }
+    }, RECOGNITION_HANDOFF_MS);
+    recognitionHandoffTimer = handoffTimer;
+  }
+
+  function armRecognitionWatchdogForCurrentSession() {
+    if (!recognition) return;
+    const session = recognition;
+    const attemptId = recognitionAttemptId;
+    window.clearTimeout(recognitionWatchdogTimer);
+    recognitionWatchdogTimer = window.setTimeout(() => {
+      if (recognition !== session || recognitionAttemptId !== attemptId) return;
+      submitVoiceTranscript = false;
+      updateListeningState(false);
+      retireRecognition(session, true);
+      if (root.classList.contains('is-open')) {
+        setStatus('Voice input timed out. Tap Speak to retry or type below.', 'notice');
+      }
+    }, RECOGNITION_WATCHDOG_MS);
   }
 
   function handleMic() {
-    if (!recognition) return;
     if (listening) {
+      const activeSession = recognition;
       submitVoiceTranscript = false;
       updateListeningState(false);
       setStatus($('[data-va-input]').value.trim()
         ? 'Listening stopped. Review your transcript, then tap Send or type below.'
         : "Didn't catch that—tap Speak to try again or type below.", 'notice');
+      if (!activeSession) {
+        clearRecognitionTimers();
+        return;
+      }
+      if (recognitionHandoffTimer !== undefined) {
+        retireRecognition(activeSession, true);
+        return;
+      }
       try {
-        recognition.stop();
+        activeSession.stop();
       } catch (error) {
         console.warn('Speech recognition could not stop:', error);
-        try {
-          if (typeof recognition.abort === 'function') recognition.abort();
-        } catch (abortError) {
-          console.warn('Speech recognition could not abort after stop failed:', abortError);
-        }
+        retireRecognition(activeSession, true);
         setStatus("Voice input couldn't stop cleanly—tap Speak to retry or type below.", 'notice');
       }
       return;
     }
-    finalTranscript = '';
-    submitVoiceTranscript = true;
-    $('[data-va-input]').value = '';
-    $('[data-va-mic-note]').textContent = 'Type a message, or tap Speak to use voice input.';
-    setStatus('Starting voice input…', 'listening');
-    updateListeningState(true);
-    try {
-      recognition.start();
-    } catch (error) {
-      submitVoiceTranscript = false;
-      updateListeningState(false);
-      console.warn('Speech recognition could not start:', error);
-      setStatus('Voice input could not start—check microphone permission or type below.', 'error');
-    }
+    startRecognition();
   }
 
   function setImageStatus(message, state = '') {
