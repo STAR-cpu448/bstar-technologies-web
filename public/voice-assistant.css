@@ -7,13 +7,9 @@
   --va-accent: #c9f36a;
   --va-blue: #70d7f0;
   position: fixed;
-  z-index: 90;
-  right: 22px;
-  bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
+  z-index: 200;
+  inset: 0;
+  pointer-events: none;
   color: var(--va-text);
   font-family: "DM Sans", Arial, sans-serif;
 }
@@ -25,6 +21,11 @@
 }
 
 .voice-assistant-launcher {
+  position: fixed;
+  z-index: 1;
+  right: 22px;
+  bottom: 20px;
+  pointer-events: auto;
   min-height: 52px;
   padding: 0 19px;
   display: inline-flex;
@@ -39,6 +40,22 @@
   cursor: pointer;
   font: 700 14px/1 "DM Sans", Arial, sans-serif;
   transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.voice-assistant-backdrop {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background: rgba(3, 7, 14, 0.62);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.voice-assistant-widget.is-open .voice-assistant-backdrop {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .voice-assistant-launcher:hover {
@@ -60,11 +77,15 @@
 }
 
 .voice-assistant-panel {
-  width: min(390px, calc(100vw - 32px));
-  max-height: min(690px, calc(100dvh - 100px));
-  min-height: 400px;
+  position: fixed;
+  z-index: 1;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 48px));
+  min-height: min(400px, calc(100dvh - 48px));
   display: grid;
-  grid-template-rows: auto auto minmax(90px, 1fr) auto auto auto auto;
+  grid-template-rows: auto auto auto minmax(90px, 1fr) auto auto auto auto;
   overflow: hidden;
   border: 1px solid var(--va-border);
   border-radius: 20px;
@@ -73,6 +94,22 @@
     linear-gradient(155deg, rgba(20, 31, 48, 0.98), rgba(8, 13, 22, 0.99));
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56);
   backdrop-filter: blur(18px);
+  opacity: 0;
+  transform: translate(-50%, 22px) scale(0.985);
+  transition: opacity 280ms ease, transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.voice-assistant-widget.is-visible .voice-assistant-panel {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+  pointer-events: auto;
+}
+
+.voice-assistant-widget.is-open .voice-assistant-launcher {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
 }
 
 .voice-assistant-panel[hidden] {
@@ -86,6 +123,18 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--va-border);
+}
+
+.voice-assistant-device-note {
+  margin: 0;
+  padding: 8px 16px 0;
+  color: var(--va-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.voice-assistant-device-note strong {
+  color: var(--va-blue);
 }
 
 .voice-assistant-brand {
@@ -362,12 +411,13 @@
 }
 
 .voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
-  min-height: min(680px, calc(100dvh - 24px));
-  max-height: min(680px, calc(100dvh - 24px));
+  min-height: min(680px, calc(100dvh - 48px));
+  max-height: min(680px, calc(100dvh - 48px));
   grid-template-rows: auto minmax(0, 1fr);
 }
 
 .voice-assistant-widget.is-image-generator-mode .voice-assistant-status,
+.voice-assistant-widget.is-image-generator-mode .voice-assistant-device-note,
 .voice-assistant-widget.is-image-generator-mode .voice-assistant-messages,
 .voice-assistant-widget.is-image-generator-mode .voice-assistant-form,
 .voice-assistant-widget.is-image-generator-mode .voice-assistant-audio-controls,
@@ -611,39 +661,35 @@
 }
 
 @media (max-width: 600px) {
-  .voice-assistant-widget {
-    right: 0;
-    bottom: 12px;
-    gap: 9px;
-  }
-
   .voice-assistant-panel {
-    width: min(390px, calc(100vw - 24px));
-    max-height: min(680px, calc(100dvh - 88px));
-    min-height: min(410px, calc(100dvh - 100px));
-    border-radius: 17px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    min-height: min(410px, calc(100dvh - 20px));
+    border-radius: 22px;
   }
 
   .voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
-    max-height: calc(100dvh - 24px);
-    min-height: min(680px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 20px);
+    min-height: min(680px, calc(100dvh - 20px));
   }
 
   .voice-assistant-launcher {
+    right: 14px;
+    bottom: max(12px, env(safe-area-inset-bottom));
     min-height: 48px;
     padding: 0 16px;
   }
 }
 
 @media (max-width: 360px) {
-  .voice-assistant-widget {
-    right: 8px;
-    bottom: 8px;
+  .voice-assistant-panel {
+    width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
   }
 
-  .voice-assistant-panel {
-    width: calc(100vw - 16px);
-    max-height: calc(100dvh - 78px);
+  .voice-assistant-widget.is-image-generator-mode .voice-assistant-panel {
+    max-height: calc(100dvh - 12px);
   }
 }
 

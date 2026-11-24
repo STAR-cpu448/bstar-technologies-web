@@ -226,6 +226,8 @@
     card.type = 'button';
     card.dataset.toolId = 'dira-image-generator';
     card.setAttribute('aria-label', 'Open DIRA AI Image Generator. Base 5 images per day, Pro KES 700 per month');
+    card.setAttribute('aria-haspopup', 'dialog');
+    card.title = 'Open DIRA AI Image Generator (press / to toggle DIRA)';
 
     const visualWrap = el('span', 'graphic-studio-flagship-visual');
     const visual = makeToolVisual('dira-image-generator');
@@ -286,6 +288,10 @@
         const button = el('button', 'tools-card');
         button.type = 'button';
         button.dataset.toolId = id;
+        if (id === 'dira-image-generator') {
+          button.setAttribute('aria-haspopup', 'dialog');
+          button.title = 'Open DIRA AI Image Generator (press / to toggle DIRA)';
+        }
         const visual = makeToolVisual(id);
         const symbol = el('span', 'tools-card-icon', icon);
         symbol.setAttribute('aria-hidden', 'true');

@@ -19,8 +19,11 @@
   const IMAGE_PRO_MONTHLY_LIMIT = 60;
   const IMAGE_BASE_DAILY_LIMIT = 5;
   const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
+  const PANEL_TRANSITION_MS = prefersReducedMotion ? 0 : 320;
   let root;
   let recognition;
+  let panelCloseTimer;
+  let lastFocusedElement;
   let listening = false;
   let submitVoiceTranscript = false;
   let finalTranscript = '';
@@ -39,7 +42,8 @@
     root.id = 'voice-assistant-widget';
     root.className = 'voice-assistant-widget';
     root.innerHTML = `
-      <section class="voice-assistant-panel" id="voice-assistant-panel" aria-label="DIRA PULSE voice assistant" hidden>
+      <div class="voice-assistant-backdrop" data-va-backdrop aria-hidden="true"></div>
+      <section class="voice-assistant-panel" id="voice-assistant-panel" role="dialog" aria-modal="true" aria-label="DIRA PULSE voice assistant" hidden>
         <header class="voice-assistant-header">
           <div class="voice-assistant-brand">
             <span class="voice-assistant-mark" aria-hidden="true">D</span>
@@ -47,6 +51,7 @@
           </div>
           <button class="voice-assistant-icon-button" type="button" data-va-action="close" aria-label="Close assistant">×</button>
         </header>
+        <p class="voice-assistant-device-note">Press <strong>/</strong> outside a text field to open or close DIRA. A browser page cannot be opened by a device’s physical power button; that button is controlled by your device.</p>
         <div class="voice-assistant-status" data-va-status role="status" aria-live="polite"></div>
         <div class="voice-assistant-messages" data-va-messages role="log" aria-live="polite" aria-relevant="additions text"></div>
         <form class="voice-assistant-form" data-va-form>
@@ -118,7 +123,7 @@
           </div>
         </details>
       </section>
-      <button class="voice-assistant-launcher" id="voice-assistant-launcher" type="button" aria-controls="voice-assistant-panel" aria-expanded="false">
+      <button class="voice-assistant-launcher" id="voice-assistant-launcher" type="button" aria-controls="voice-assistant-panel" aria-expanded="false" aria-keyshortcuts="/">
         <span class="voice-assistant-launcher-icon" aria-hidden="true">✦</span>
         <span>Ask DIRA</span>
       </button>`;
@@ -164,32 +169,61 @@
   }
 
   function openPanel() {
+    showPanel();
     root.classList.remove('is-image-generator-mode');
     $('[data-va-brand-title]').textContent = 'DIRA Assistant';
     $('[data-va-brand-subtitle]').textContent = 'Voice and text help';
     $('[data-va-image-studio]').open = false;
-    $('#voice-assistant-panel').hidden = false;
-    $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
     $('[data-va-input]').focus();
   }
 
   function openImageGenerator() {
+    showPanel();
     root.classList.add('is-image-generator-mode');
     $('[data-va-brand-title]').textContent = 'DIRA AI Image Generator';
     $('[data-va-brand-subtitle]').textContent = 'Base · 5/day | Pro · KES 700/month';
     $('[data-va-image-studio]').open = true;
-    $('#voice-assistant-panel').hidden = false;
+    $('[data-va-image-prompt]').focus();
+  }
+
+  function showPanel() {
+    window.clearTimeout(panelCloseTimer);
+    const panel = $('#voice-assistant-panel');
+    if (panel.hidden) {
+      const activeElement = document.activeElement;
+      lastFocusedElement = activeElement instanceof HTMLElement
+        && activeElement !== document.body
+        && !panel.contains(activeElement)
+        ? activeElement
+        : null;
+    }
+    panel.hidden = false;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
+    root.classList.add('is-open');
+    root.classList.remove('is-visible');
+    window.requestAnimationFrame(() => root.classList.add('is-visible'));
   }
 
   function closePanel() {
-    $('#voice-assistant-panel').hidden = true;
+    const panel = $('#voice-assistant-panel');
+    if (panel.hidden) return;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'false');
+    root.classList.remove('is-open', 'is-visible');
+    window.clearTimeout(panelCloseTimer);
+    panelCloseTimer = window.setTimeout(() => { panel.hidden = true; }, PANEL_TRANSITION_MS);
     root.classList.remove('is-image-generator-mode');
     $('[data-va-brand-title]').textContent = 'DIRA Assistant';
     $('[data-va-brand-subtitle]').textContent = 'Voice and text help';
     $('[data-va-image-studio]').open = false;
-    $('#voice-assistant-launcher').focus();
+    const focusTarget = lastFocusedElement?.isConnected && !panel.contains(lastFocusedElement)
+      ? lastFocusedElement
+      : $('#voice-assistant-launcher');
+    focusTarget.focus();
+  }
+
+  function isTypingTarget(target) {
+    return target instanceof HTMLElement
+      && (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'));
   }
 
   function navigateToSection(id, label) {
@@ -472,6 +506,11 @@
           message: "Voice input didn't start—tap Speak to retry or type below.",
           state: 'notice',
         };
+        if (event.error === 'not-allowed') {
+          $('[data-va-mic-note]').textContent = 'Microphone permission is blocked. Allow access in browser settings, or type your message below.';
+        } else if (event.error === 'audio-capture') {
+          $('[data-va-mic-note]').textContent = 'No microphone is available. Connect or enable one, or type your message below.';
+        }
         if (feedback.state === 'unsupported') {
           mic.disabled = true;
           mic.title = 'Voice input is not available in this browser or webview.';
@@ -775,6 +814,10 @@
 
     $('#voice-assistant-launcher').addEventListener('click', openPanel);
     root.addEventListener('click', (event) => {
+      if (event.target.matches('[data-va-backdrop]')) {
+        closePanel();
+        return;
+      }
       const action = event.target.closest('[data-va-action]')?.dataset.vaAction;
       if (action === 'close') closePanel();
       else if (action === 'mic') handleMic();
@@ -807,7 +850,15 @@
       }
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !$('#voice-assistant-panel').hidden) closePanel();
+      const panelOpen = !$('#voice-assistant-panel').hidden && root.classList.contains('is-open');
+      if (event.key === 'Escape' && panelOpen) {
+        closePanel();
+      } else if (event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey
+        && !event.shiftKey && !event.repeat && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        if (panelOpen) closePanel();
+        else openPanel();
+      }
     });
     window.DIRAVoiceAssistant = Object.freeze({ open: openPanel, close: closePanel, openImageGenerator });
   }
