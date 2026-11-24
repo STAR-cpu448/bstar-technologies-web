@@ -703,3 +703,348 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.voice-assistant-widget {
+  z-index: 2147483000;
+  --va-orb-pink: #ff65cf;
+  --va-orb-cyan: #62f4ff;
+  --va-orb-blue: #548bff;
+  --va-orb-white: #f7fdff;
+}
+
+.voice-assistant-launcher {
+  min-height: 62px;
+  padding: 8px 12px 8px 10px;
+  gap: 10px;
+  overflow: visible;
+  border: 1px solid rgba(142, 204, 255, 0.35);
+  border-radius: 21px;
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(84, 139, 255, 0.17), transparent 56%),
+    linear-gradient(145deg, rgba(20, 28, 48, 0.94), rgba(7, 11, 21, 0.96));
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.48),
+    0 0 24px rgba(84, 139, 255, 0.14),
+    inset 0 1px rgba(255, 255, 255, 0.12);
+  color: #f6f9ff;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.voice-assistant-launcher::before {
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255, 101, 207, 0.68), rgba(98, 244, 255, 0.55) 48%, rgba(84, 139, 255, 0.58));
+  content: "";
+  opacity: 0.42;
+  filter: blur(13px);
+  animation: voice-assistant-housing-glow 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.voice-assistant-launcher > * {
+  position: relative;
+  z-index: 1;
+}
+
+.voice-assistant-launcher:hover {
+  transform: translateY(-3px) scale(1.015);
+  border-color: rgba(170, 229, 255, 0.66);
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(84, 139, 255, 0.24), transparent 56%),
+    linear-gradient(145deg, rgba(25, 35, 60, 0.97), rgba(7, 11, 21, 0.97));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.54),
+    0 0 31px rgba(98, 244, 255, 0.18),
+    inset 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.voice-assistant-launcher:hover::before {
+  opacity: 0.88;
+  animation-duration: 1.5s;
+}
+
+.voice-assistant-launcher:hover .voice-assistant-orb,
+.voice-assistant-launcher:focus-visible .voice-assistant-orb {
+  animation-duration: 1.5s;
+}
+
+.voice-assistant-launcher:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.voice-assistant-launcher:active .voice-assistant-orb {
+  animation-duration: 0.75s;
+  filter: brightness(1.35) saturate(1.35);
+}
+
+.voice-assistant-orb {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(205, 233, 255, 0.36);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 49% 49%, rgba(255, 255, 255, 0.98) 0 3%, rgba(132, 238, 255, 0.82) 10%, rgba(86, 126, 255, 0.42) 27%, transparent 58%),
+    radial-gradient(circle at 25% 80%, rgba(255, 74, 194, 0.75), transparent 48%),
+    radial-gradient(circle at 84% 18%, rgba(58, 205, 255, 0.85), transparent 51%),
+    #10182b;
+  box-shadow: 0 0 9px rgba(255, 255, 255, 0.6),
+    0 0 22px rgba(98, 244, 255, 0.62),
+    0 0 34px rgba(255, 101, 207, 0.3),
+    inset 0 0 13px rgba(255, 255, 255, 0.21);
+  animation: voice-assistant-orb-breathe 2.25s ease-in-out infinite;
+}
+
+.voice-assistant-orb::before,
+.voice-assistant-orb::after {
+  position: absolute;
+  z-index: -1;
+  inset: 14%;
+  border: 1px solid rgba(231, 251, 255, 0.48);
+  border-radius: 48% 52% 64% 36% / 44% 42% 58% 56%;
+  content: "";
+  filter: blur(1px);
+  transform: rotate(-32deg);
+}
+
+.voice-assistant-orb::before {
+  box-shadow: 0 0 9px rgba(255, 255, 255, 0.8), 0 0 17px rgba(98, 244, 255, 0.75);
+  animation: voice-assistant-orb-ribbon-a 2.1s ease-in-out infinite;
+}
+
+.voice-assistant-orb::after {
+  inset: 20% 5%;
+  border-color: rgba(255, 142, 222, 0.8);
+  box-shadow: 0 0 11px rgba(255, 101, 207, 0.84), 0 0 19px rgba(84, 139, 255, 0.72);
+  transform: rotate(38deg);
+  animation: voice-assistant-orb-ribbon-b 2.45s ease-in-out infinite;
+}
+
+.voice-assistant-orb__ribbon {
+  position: absolute;
+  top: 50%;
+  left: -18%;
+  width: 136%;
+  height: 30%;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0.85;
+  transform: translateY(-50%) rotate(-24deg);
+}
+
+.voice-assistant-orb__ribbon--pink {
+  border-color: rgba(255, 119, 222, 0.95);
+  box-shadow: 0 0 8px rgba(255, 83, 202, 0.95), 0 0 15px rgba(255, 83, 202, 0.63);
+  animation: voice-assistant-ribbon-pink 1.65s ease-in-out infinite;
+}
+
+.voice-assistant-orb__ribbon--blue {
+  height: 39%;
+  border-color: rgba(117, 153, 255, 0.92);
+  box-shadow: 0 0 8px rgba(84, 139, 255, 0.9), 0 0 16px rgba(58, 105, 255, 0.65);
+  transform: translateY(-50%) rotate(53deg);
+  animation: voice-assistant-ribbon-blue 2.25s ease-in-out infinite;
+}
+
+.voice-assistant-orb__ribbon--cyan {
+  height: 20%;
+  border-color: rgba(149, 255, 255, 0.98);
+  box-shadow: 0 0 7px rgba(98, 244, 255, 0.96), 0 0 13px rgba(98, 244, 255, 0.72);
+  transform: translateY(-50%) rotate(8deg);
+  animation: voice-assistant-ribbon-cyan 1.8s ease-in-out infinite;
+}
+
+.voice-assistant-orb__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 5px 2px #fff, 0 0 13px 5px rgba(160, 248, 255, 0.95), 0 0 22px 8px rgba(255, 120, 224, 0.56);
+  transform: translate(-50%, -50%);
+  animation: voice-assistant-core-pulse 1.55s ease-in-out infinite;
+}
+
+.voice-assistant-orb--launcher {
+  width: 42px;
+  height: 42px;
+}
+
+.voice-assistant-launcher-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #f7f8ff;
+  font: 700 13px/1 "DM Sans", Arial, sans-serif;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+}
+
+.voice-assistant-launcher-label > span {
+  color: #f7a8ef;
+  font-size: 15px;
+  text-shadow: 0 0 10px rgba(255, 101, 207, 0.9);
+}
+
+.voice-assistant-header {
+  position: relative;
+  min-height: 74px;
+  overflow: hidden;
+  border-bottom-color: rgba(153, 198, 255, 0.16);
+  background:
+    radial-gradient(ellipse at 12% 5%, rgba(255, 75, 190, 0.13), transparent 39%),
+    radial-gradient(ellipse at 78% 0%, rgba(58, 204, 255, 0.14), transparent 44%),
+    linear-gradient(110deg, rgba(13, 19, 34, 0.88), rgba(17, 26, 45, 0.76));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.voice-assistant-header::after {
+  position: absolute;
+  right: 56px;
+  bottom: -1px;
+  left: 56px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 101, 207, 0.76), rgba(98, 244, 255, 0.88), transparent);
+  box-shadow: 0 0 12px rgba(98, 244, 255, 0.62);
+  content: "";
+}
+
+.voice-assistant-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  overflow: visible;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+
+.voice-assistant-mark .voice-assistant-orb {
+  width: 44px;
+  height: 44px;
+}
+
+.voice-assistant-panel {
+  border-color: rgba(144, 198, 255, 0.3);
+  background:
+    radial-gradient(ellipse at 92% 0, rgba(79, 156, 255, 0.15), transparent 37%),
+    radial-gradient(ellipse at 5% 0, rgba(255, 80, 196, 0.1), transparent 34%),
+    linear-gradient(155deg, rgba(20, 29, 49, 0.97), rgba(7, 12, 23, 0.98));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.66), 0 0 40px rgba(73, 158, 255, 0.12);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb {
+  animation-duration: 1.55s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb::before {
+  animation-duration: 1.7s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb::after {
+  animation-duration: 2s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb__ribbon--pink {
+  animation-duration: 1.5s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb__ribbon--blue {
+  animation-duration: 1.9s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb__ribbon--cyan {
+  animation-duration: 1.6s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-orb__core {
+  animation-duration: 1.25s;
+}
+
+.voice-assistant-widget.is-energized .voice-assistant-launcher::before {
+  animation-duration: 1.55s;
+  opacity: 0.82;
+}
+
+@keyframes voice-assistant-orb-breathe {
+  0%, 100% { filter: saturate(0.82) brightness(0.86); transform: scale(0.86) rotate(-8deg); }
+  50% { filter: saturate(1.42) brightness(1.32); transform: scale(1.13) rotate(9deg); }
+}
+
+@keyframes voice-assistant-orb-ribbon-a {
+  0%, 100% { transform: rotate(-52deg) scale(0.72, 0.84) translateY(-4px); }
+  50% { transform: rotate(33deg) scale(1.18, 1.12) translateY(4px); }
+}
+
+@keyframes voice-assistant-orb-ribbon-b {
+  0%, 100% { transform: rotate(61deg) scale(0.78, 0.8) translateY(3px); }
+  50% { transform: rotate(-38deg) scale(1.16, 1.15) translateY(-3px); }
+}
+
+@keyframes voice-assistant-ribbon-pink {
+  0%, 100% { opacity: 0.45; transform: translateY(calc(-50% - 5px)) rotate(-48deg) scaleX(0.68); }
+  50% { opacity: 1; transform: translateY(calc(-50% + 5px)) rotate(39deg) scaleX(1.2); }
+}
+
+@keyframes voice-assistant-ribbon-blue {
+  0%, 100% { opacity: 0.55; transform: translateY(calc(-50% + 4px)) rotate(32deg) scaleX(0.72); }
+  50% { opacity: 1; transform: translateY(calc(-50% - 4px)) rotate(91deg) scaleX(1.22); }
+}
+
+@keyframes voice-assistant-ribbon-cyan {
+  0%, 100% { opacity: 0.5; transform: translateY(calc(-50% - 3px)) rotate(27deg) scaleX(0.68); }
+  50% { opacity: 1; transform: translateY(calc(-50% + 3px)) rotate(-34deg) scaleX(1.24); }
+}
+
+@keyframes voice-assistant-core-pulse {
+  0%, 100% { opacity: 0.72; box-shadow: 0 0 3px 1px #fff, 0 0 8px 3px rgba(160, 248, 255, 0.72), 0 0 13px 5px rgba(255, 120, 224, 0.34); }
+  50% { opacity: 1; box-shadow: 0 0 9px 4px #fff, 0 0 23px 10px rgba(160, 248, 255, 1), 0 0 34px 14px rgba(255, 120, 224, 0.82); }
+}
+
+@keyframes voice-assistant-housing-glow {
+  0%, 100% { opacity: 0.24; transform: scale(0.95); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+@media (max-width: 600px) {
+  .voice-assistant-launcher {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 56px;
+    padding: 7px 10px 7px 8px;
+    gap: 8px;
+  }
+
+  .voice-assistant-orb--launcher {
+    width: 38px;
+    height: 38px;
+  }
+
+  .voice-assistant-launcher-label {
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-assistant-widget .voice-assistant-orb,
+  .voice-assistant-widget .voice-assistant-orb::before,
+  .voice-assistant-widget .voice-assistant-orb::after,
+  .voice-assistant-widget .voice-assistant-orb__ribbon,
+  .voice-assistant-widget .voice-assistant-orb__core,
+  .voice-assistant-widget .voice-assistant-launcher::before {
+    animation: none !important;
+  }
+}

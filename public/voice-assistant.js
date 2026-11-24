@@ -23,6 +23,7 @@
   let root;
   let recognition;
   let panelCloseTimer;
+  let panelAnimationFrame;
   let lastFocusedElement;
   let listening = false;
   let submitVoiceTranscript = false;
@@ -37,7 +38,12 @@
   const normalize = (value) => value.toLowerCase().replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 
   function createWidget() {
-    if (document.getElementById('voice-assistant-widget')) return null;
+    const existing = document.getElementById('voice-assistant-widget');
+    if (existing) {
+      root = existing;
+      if (root.parentElement !== document.body) document.body.append(root);
+      return root;
+    }
     root = document.createElement('div');
     root.id = 'voice-assistant-widget';
     root.className = 'voice-assistant-widget';
@@ -46,12 +52,19 @@
       <section class="voice-assistant-panel" id="voice-assistant-panel" role="dialog" aria-modal="true" aria-label="DIRA PULSE voice assistant" hidden>
         <header class="voice-assistant-header">
           <div class="voice-assistant-brand">
-            <span class="voice-assistant-mark" aria-hidden="true">D</span>
+            <span class="voice-assistant-mark" aria-hidden="true">
+              <span class="voice-assistant-orb">
+                <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--pink"></span>
+                <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--blue"></span>
+                <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--cyan"></span>
+                <span class="voice-assistant-orb__core"></span>
+              </span>
+            </span>
             <div><strong data-va-brand-title>DIRA Assistant</strong><small data-va-brand-subtitle>Voice and text help</small></div>
           </div>
           <button class="voice-assistant-icon-button" type="button" data-va-action="close" aria-label="Close assistant">×</button>
         </header>
-        <p class="voice-assistant-device-note">Press <strong>/</strong> outside a text field to open or close DIRA. A browser page cannot be opened by a device’s physical power button; that button is controlled by your device.</p>
+        <p class="voice-assistant-device-note">Press <strong>Alt+D</strong> or <strong>/</strong> outside a text field to open or close DIRA. A browser page cannot be opened by a device’s physical power button; that button is controlled by your device.</p>
         <div class="voice-assistant-status" data-va-status role="status" aria-live="polite"></div>
         <div class="voice-assistant-messages" data-va-messages role="log" aria-live="polite" aria-relevant="additions text"></div>
         <form class="voice-assistant-form" data-va-form>
@@ -123,9 +136,14 @@
           </div>
         </details>
       </section>
-      <button class="voice-assistant-launcher" id="voice-assistant-launcher" type="button" aria-controls="voice-assistant-panel" aria-expanded="false" aria-keyshortcuts="/">
-        <span class="voice-assistant-launcher-icon" aria-hidden="true">✦</span>
-        <span>Ask DIRA</span>
+      <button class="voice-assistant-launcher" id="voice-assistant-launcher" type="button" title="Open or close DIRA (Alt+D or /)" aria-label="Ask DIRA. Keyboard shortcut: Alt+D or slash." aria-controls="voice-assistant-panel" aria-expanded="false" aria-keyshortcuts="/ Alt+D">
+        <span class="voice-assistant-orb voice-assistant-orb--launcher" aria-hidden="true">
+          <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--pink"></span>
+          <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--blue"></span>
+          <span class="voice-assistant-orb__ribbon voice-assistant-orb__ribbon--cyan"></span>
+          <span class="voice-assistant-orb__core"></span>
+        </span>
+        <span class="voice-assistant-launcher-label"><span aria-hidden="true">✦</span> Ask DIRA</span>
       </button>`;
     document.body.append(root);
     return root;
@@ -187,6 +205,7 @@
   }
 
   function showPanel() {
+    window.dispatchEvent(new CustomEvent('dira-assistant-open'));
     window.clearTimeout(panelCloseTimer);
     const panel = $('#voice-assistant-panel');
     if (panel.hidden) {
@@ -199,9 +218,13 @@
     }
     panel.hidden = false;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'true');
-    root.classList.add('is-open');
+    root.classList.add('is-open', 'is-energized');
     root.classList.remove('is-visible');
-    window.requestAnimationFrame(() => root.classList.add('is-visible'));
+    window.cancelAnimationFrame(panelAnimationFrame);
+    panelAnimationFrame = window.requestAnimationFrame(() => {
+      panelAnimationFrame = undefined;
+      if (!panel.hidden && root.classList.contains('is-open')) root.classList.add('is-visible');
+    });
   }
 
   function closePanel() {
@@ -209,8 +232,13 @@
     if (panel.hidden) return;
     $('#voice-assistant-launcher').setAttribute('aria-expanded', 'false');
     root.classList.remove('is-open', 'is-visible');
+    window.cancelAnimationFrame(panelAnimationFrame);
+    panelAnimationFrame = undefined;
     window.clearTimeout(panelCloseTimer);
-    panelCloseTimer = window.setTimeout(() => { panel.hidden = true; }, PANEL_TRANSITION_MS);
+    panelCloseTimer = window.setTimeout(() => {
+      panel.hidden = true;
+      root.classList.remove('is-energized');
+    }, PANEL_TRANSITION_MS);
     root.classList.remove('is-image-generator-mode');
     $('[data-va-brand-title]').textContent = 'DIRA Assistant';
     $('[data-va-brand-subtitle]').textContent = 'Voice and text help';
@@ -219,6 +247,7 @@
       ? lastFocusedElement
       : $('#voice-assistant-launcher');
     focusTarget.focus();
+    window.dispatchEvent(new CustomEvent('dira-assistant-close'));
   }
 
   function isTypingTarget(target) {
@@ -804,7 +833,8 @@
   }
 
   function init() {
-    if (!createWidget()) return;
+    if (!createWidget() || root.dataset.vaInitialized === 'true') return;
+    root.dataset.vaInitialized = 'true';
     $('#voice-assistant-panel').hidden = true;
     $('[data-va-share-url]').textContent = assistantUrl();
     addMessage('assistant', 'Hi! I can answer common questions and help you navigate the DIRA PULSE website. Try “open the tools” or type a question.');
@@ -812,7 +842,16 @@
     setupImageGenerator();
     setVoiceEnabled(voiceEnabled);
 
-    $('#voice-assistant-launcher').addEventListener('click', openPanel);
+    const launcher = $('#voice-assistant-launcher');
+    launcher.addEventListener('click', openPanel);
+    launcher.addEventListener('pointerenter', () => root.classList.add('is-energized'));
+    launcher.addEventListener('pointerleave', () => {
+      if (!root.classList.contains('is-open')) root.classList.remove('is-energized');
+    });
+    launcher.addEventListener('focus', () => root.classList.add('is-energized'));
+    launcher.addEventListener('blur', () => {
+      if (!root.classList.contains('is-open')) root.classList.remove('is-energized');
+    });
     root.addEventListener('click', (event) => {
       if (event.target.matches('[data-va-backdrop]')) {
         closePanel();
@@ -853,8 +892,9 @@
       const panelOpen = !$('#voice-assistant-panel').hidden && root.classList.contains('is-open');
       if (event.key === 'Escape' && panelOpen) {
         closePanel();
-      } else if (event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey
-        && !event.shiftKey && !event.repeat && !isTypingTarget(event.target)) {
+      } else if (((event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey)
+        || (event.key.toLowerCase() === 'd' && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey))
+        && !event.repeat && !isTypingTarget(event.target)) {
         event.preventDefault();
         if (panelOpen) closePanel();
         else openPanel();

@@ -1849,7 +1849,8 @@
   function syncToolPanelOpenState() {
     if ($('#tools-workspace').open || $('#tools-paywall').open) {
       document.body.classList.add('panel-open');
-    } else if (!$('#admin-dialog').open && $('#cart-drawer').hidden) {
+    } else if (!$('#admin-dialog').open && $('#cart-drawer').hidden
+      && !document.querySelector('.voice-assistant-widget.is-open')) {
       document.body.classList.remove('panel-open');
     }
   }
@@ -1884,6 +1885,12 @@
     $('#tools-paywall').addEventListener('close', syncToolPanelOpenState);
     $('#tools-workspace').addEventListener('cancel', syncToolPanelOpenState);
     $('#tools-paywall').addEventListener('cancel', syncToolPanelOpenState);
+    window.addEventListener('dira-assistant-open', () => {
+      document.body.classList.add('panel-open');
+      closeDialog($('#tools-workspace'));
+      closeDialog($('#tools-paywall'));
+    });
+    window.addEventListener('dira-assistant-close', syncToolPanelOpenState);
     $('#tools-workspace').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeDialog(event.currentTarget); });
     $('#tools-paywall').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeDialog(event.currentTarget); });
     $('#tool-subscriptions-panel').addEventListener('click', async (event) => {
@@ -1898,7 +1905,8 @@
       });
     }));
     document.querySelectorAll('.tools-workspace,.tools-paywall').forEach((dialog) => dialog.addEventListener('close', () => {
-      if (!$('#tools-workspace').open && !$('#tools-paywall').open && !$('#admin-dialog').open && $('#cart-drawer').hidden) {
+      if (!$('#tools-workspace').open && !$('#tools-paywall').open && !$('#admin-dialog').open && $('#cart-drawer').hidden
+        && !document.querySelector('.voice-assistant-widget.is-open')) {
         document.body.classList.remove('panel-open');
       }
     }));
