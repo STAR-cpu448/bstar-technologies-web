@@ -30,6 +30,9 @@
   let panelCloseTimer;
   let panelAnimationFrame;
   let lastFocusedElement;
+  let pendingNavigationTimer;
+  let navigationHighlightTimer;
+  let highlightedNavigationTarget;
   let listening = false;
   let submitVoiceTranscript = false;
   let finalTranscript = '';
@@ -41,6 +44,7 @@
 
   const $ = (selector) => root.querySelector(selector);
   const normalize = (value) => value.toLowerCase().replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const containsPhrase = (text, phrase) => (` ${text} `).includes(` ${phrase} `);
 
   function createWidget() {
     const existing = document.getElementById('voice-assistant-widget');
@@ -283,15 +287,6 @@
       && (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'));
   }
 
-  function navigateToSection(id, label) {
-    const section = document.getElementById(id);
-    if (!section) return false;
-    section.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
-    const heading = section.querySelector('h1,h2,h3');
-    heading?.focus({ preventScroll: true });
-    return label;
-  }
-
   function normalizePhoneForWhatsApp() {
     const phone = window.BSTAR_CONFIG?.whatsappNumber || '';
     const digits = phone.replace(/\D/g, '');
@@ -299,15 +294,247 @@
   }
 
   function findTool(query) {
-    const requested = /\b(?:canva|graphic design|design studio)\b/.test(query) ? 'dira design studio' : query;
     const cards = [...document.querySelectorAll('#tools [data-tool-id]')];
     const titles = cards.map((card) => ({
       card,
       title: normalize(card.querySelector('strong')?.textContent || card.dataset.toolId || ''),
-      id: normalize(card.dataset.toolId || ''),
+      id: normalize((card.dataset.toolId || '').replace(/[-_]/g, ' ')),
     }));
-    return titles.find(({ title, id }) => title === requested || id === requested)
-      || titles.find(({ title, id }) => requested && (title.includes(requested) || id.includes(requested)));
+    return titles.find(({ title, id }) => title === query || id === query)
+      || titles.find(({ title, id }) => query.length > 2 && (containsPhrase(title, query) || containsPhrase(id, query)));
+  }
+
+  function getNavigationRequest(message) {
+    const query = normalize(message);
+    const request = query.match(/^(?:please\s+)?(?:can you\s+)?(?:open|show|go to|navigate to|scroll to|take me to|visit|launch|start|use|display|find)\s+(?:me\s+)?(.+)$/);
+    if (request) {
+      return request[1]
+        .replace(/^(?:the|my|tool|section)\s+/, '')
+        .replace(/\s+(?:section|page|category|tools|tool|please)$/, '')
+        .trim();
+    }
+
+    const creationRequest = query.match(/^(?:create|generate|make)\s+(?:me\s+)?(?:(?:an?|the)\s+)?(.+)$/);
+    if (creationRequest) return creationRequest[1].trim();
+
+    return new Set([
+      'home', 'shop', 'products', 'collection', 'store', 'tools', 'digital tools', 'utilities',
+      'dynamic qr', 'cart', 'basket', 'checkout', 'payment', 'contact', 'support',
+      'image generator', 'pro plan', 'base plan', 'admin dashboard', '3d studio',
+    ]).has(query) ? query : '';
+  }
+
+  function isVisibleNavigationTarget(element) {
+    if (element.closest('#voice-assistant-widget,[hidden],[aria-hidden="true"]')) return false;
+    const dialog = element.closest('dialog');
+    if (dialog && !dialog.open) return false;
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+  }
+
+  function navigationElementLabel(element) {
+    const section = element.matches('main,section,[data-section]')
+      ? element
+      : element.closest('main,section,[data-section]');
+    const heading = element.matches('h1,h2,h3')
+      ? element
+      : element.querySelector('h1,h2,h3') || section?.querySelector('h1,h2,h3');
+    return normalize([
+      element.dataset.section,
+      element.id?.replace(/[-_]/g, ' '),
+      element.getAttribute('aria-label'),
+      element.getAttribute('title'),
+      heading?.textContent,
+    ].filter(Boolean).join(' '));
+  }
+
+  function findPageNavigationTarget(query) {
+    const candidates = [...document.querySelectorAll('[id],[data-section],h1,h2,h3')];
+    let partialMatch = null;
+    for (const candidate of candidates) {
+      if (!isVisibleNavigationTarget(candidate)) continue;
+      const label = navigationElementLabel(candidate);
+      if (!label) continue;
+      const section = candidate.matches('h1,h2,h3')
+        ? candidate.closest('main,section,[data-section]') || candidate
+        : candidate;
+      if (label === query) return section;
+      if (!partialMatch && query.length > 2 && containsPhrase(label, query)) partialMatch = section;
+    }
+    return partialMatch;
+  }
+
+  function highlightNavigationTarget(element) {
+    if (!element) return;
+    window.clearTimeout(navigationHighlightTimer);
+    if (highlightedNavigationTarget) highlightedNavigationTarget.classList.remove('dira-navigation-highlight');
+    highlightedNavigationTarget = element;
+    element.classList.remove('dira-navigation-highlight');
+    void element.offsetWidth;
+    element.classList.add('dira-navigation-highlight');
+    navigationHighlightTimer = window.setTimeout(() => {
+      element.classList.remove('dira-navigation-highlight');
+      if (highlightedNavigationTarget === element) highlightedNavigationTarget = null;
+    }, 1500);
+  }
+
+  function revealNavigationTarget(element, block = 'start') {
+    element.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block });
+    const category = element.closest('.tools-category[data-tool-category]');
+    if (category && category.hidden) window.DIRATools?.showCategory(category.dataset.toolCategory);
+    const heading = element.matches('h1,h2,h3') ? element : element.querySelector('h1,h2,h3');
+    heading?.focus({ preventScroll: true });
+    highlightNavigationTarget(element);
+  }
+
+  function resolveAppTarget(query) {
+    const aliases = [
+      { type: 'section', id: 'top', name: 'home', phrases: ['home', 'top', 'homepage'] },
+      { type: 'section', id: 'shop', name: 'Shop', phrases: ['shop', 'products', 'collection', 'store'] },
+      { type: 'section', id: 'tools', name: 'Digital Tools', phrases: ['tools', 'digital tools', 'utilities'] },
+      { type: 'section', id: 'dynamic-qr', name: 'Dynamic QR', phrases: ['dynamic qr', 'image qr', 'qr codes', 'payment', 'payments', 'mpesa payment', 'm pesa payment'] },
+      { type: 'section', id: 'why-dira-pulse', name: 'Why DIRA PULSE', phrases: ['why dira pulse', 'about', 'about dira', 'about us'] },
+      { type: 'cart', name: 'your cart', phrases: ['cart', 'basket', 'shopping cart', 'checkout', 'order checkout'] },
+      { type: 'tool', name: 'QR Generator', toolId: 'qr-generator', phrases: ['qr code', 'qr generator'] },
+      { type: 'contact', name: 'WhatsApp support', phrases: ['contact', 'support', 'whatsapp', 'the team'] },
+      { type: 'admin', name: 'admin dashboard', phrases: ['admin', 'admin dashboard', 'store dashboard'] },
+      { type: 'modeler', name: '3D Studio', phrases: ['3d studio', '3d modeler', 'modeler'] },
+      {
+        type: 'generator-card',
+        name: 'DIRA AI Image Generator',
+        phrases: ['image', 'create image', 'generate image', 'ai image', 'image generator', 'dira ai image generator', 'pro plan', 'base plan', 'pro tier', 'base tier'],
+      },
+    ];
+    const alias = aliases.find(({ phrases }) => phrases.includes(query)
+      || phrases.some((phrase) => query.startsWith(`${phrase} `)));
+    if (alias) {
+      const element = alias.id ? document.getElementById(alias.id) : null;
+      if (alias.id && !element) return null;
+      if (alias.type === 'contact' && !normalizePhoneForWhatsApp()) return null;
+      if (alias.type === 'generator-card') {
+        const card = findTool('dira ai image generator')?.card;
+        if (!card) return null;
+        return {
+          ...alias,
+          element: card,
+          reply: 'Showing DIRA AI Image Generator. Tap its card to choose Base or Pro.',
+        };
+      }
+      if (alias.type === 'tool') {
+        const card = findTool(alias.toolId)?.card;
+        if (!card) return null;
+        return {
+          ...alias,
+          element: card,
+          reply: `Opening ${alias.name}.`,
+        };
+      }
+      return {
+        ...alias,
+        element,
+        reply: alias.type === 'cart'
+          ? 'Opening your cart. Checkout is available there.'
+          : alias.type === 'contact'
+            ? 'Opening WhatsApp support.'
+            : alias.type === 'admin'
+              ? 'Opening the admin dashboard.'
+              : alias.type === 'modeler'
+                ? 'Opening 3D Studio.'
+                : `Showing ${alias.name}.`,
+      };
+    }
+
+    const category = [...document.querySelectorAll('.tools-category[data-tool-category]')]
+      .find((section) => normalize(section.dataset.toolCategory) === query
+        || normalize(section.querySelector('h1,h2,h3')?.textContent || '') === query);
+    if (category) {
+      return { type: 'category', name: category.dataset.toolCategory, element: category, reply: `Showing ${category.dataset.toolCategory} tools.` };
+    }
+
+    const tool = findTool(query);
+    if (tool) {
+      if (tool.card.dataset.toolId === 'dira-image-generator') {
+        return {
+          type: 'generator-card',
+          name: tool.card.querySelector('strong')?.textContent || 'DIRA AI Image Generator',
+          element: tool.card,
+          reply: 'Showing DIRA AI Image Generator. Tap its card to choose Base or Pro.',
+        };
+      }
+      return {
+        type: 'tool',
+        name: tool.card.querySelector('strong')?.textContent || tool.card.dataset.toolId,
+        element: tool.card,
+        toolId: tool.card.dataset.toolId,
+        reply: `Opening ${tool.card.querySelector('strong')?.textContent || 'the tool'}.`,
+      };
+    }
+
+    const element = findPageNavigationTarget(query);
+    if (!element) return null;
+    const label = element.dataset.section || element.querySelector('h1,h2,h3')?.textContent || element.id;
+    return { type: 'section', name: normalize(label), element, reply: `Showing ${label}.` };
+  }
+
+  async function activateAppTarget(target) {
+    if (target.type === 'section' || target.type === 'category' || target.type === 'generator-card') {
+      if (target.element.id === 'dynamic-qr') window.DIRATools?.showCategory('Design');
+      if (target.type === 'category') window.DIRATools?.showCategory(target.name);
+      revealNavigationTarget(target.element, target.type === 'generator-card' ? 'center' : 'start');
+      return;
+    }
+    if (target.type === 'cart') {
+      const openCart = document.getElementById('open-cart');
+      const drawer = document.getElementById('cart-drawer');
+      if (!openCart || !drawer) throw new Error('The cart drawer is unavailable on this page.');
+      openCart.click();
+      highlightNavigationTarget(drawer);
+      return;
+    }
+    if (target.type === 'admin') {
+      const openAdmin = document.getElementById('open-admin');
+      const dialog = document.getElementById('admin-dialog');
+      if (!openAdmin || !dialog) throw new Error('The admin dashboard is unavailable on this page.');
+      openAdmin.click();
+      highlightNavigationTarget(dialog);
+      return;
+    }
+    if (target.type === 'contact') {
+      window.location.assign(`https://wa.me/${normalizePhoneForWhatsApp()}`);
+      return;
+    }
+    if (target.type === 'modeler') {
+      window.location.assign('/modeler.html');
+      return;
+    }
+    if (target.type === 'tool') {
+      const tools = window.DIRATools;
+      if (!tools?.openTool) throw new Error('Digital Tools are still loading. Please try again.');
+      await tools.openTool(target.toolId);
+      const dialog = document.querySelector('#tools-paywall[open], #tools-workspace[open]');
+      highlightNavigationTarget(dialog || target.element);
+    }
+  }
+
+  function navigateToAppTarget(target) {
+    const query = getNavigationRequest(target);
+    if (!query) return null;
+    const appTarget = resolveAppTarget(query);
+    if (!appTarget) return null;
+    window.clearTimeout(pendingNavigationTimer);
+    pendingNavigationTimer = window.setTimeout(() => {
+      pendingNavigationTimer = undefined;
+      closePanel();
+      window.requestAnimationFrame(() => {
+        activateAppTarget(appTarget).catch((error) => {
+          console.error('Could not navigate to the requested app target:', error);
+          openPanel();
+          addMessage('assistant', `I couldn't open ${appTarget.name}: ${error.message}`);
+          setStatus(error.message, 'error');
+        });
+      });
+    }, 500);
+    return appTarget.reply;
   }
 
   async function runCommand(message) {
@@ -334,47 +561,7 @@
       openPanel();
       return 'The assistant is open. You can type or tap Speak.';
     }
-    if (/^(?:open|launch|go to|visit)\s+(?:the\s+)?3d studio$/.test(query)) {
-      window.location.assign('/modeler.html');
-      return 'Opening 3D Studio.';
-    }
-    if (/^(?:open|contact|message)\s+(?:whatsapp|support|the team|dira pulse)$/.test(query)) {
-      const phone = normalizePhoneForWhatsApp();
-      if (!phone) return 'The contact number is not configured on this page. Please use the contact information shown on the site.';
-      window.location.assign(`https://wa.me/${phone}`);
-      return 'Opening WhatsApp.';
-    }
-    if (/^(?:open|show|view)\s+(?:the\s+)?(?:cart|basket|checkout)$/.test(query)) {
-      document.getElementById('open-cart')?.click();
-      return 'Opening your cart. The checkout button will take you to WhatsApp to confirm your order.';
-    }
-
-    const sectionAliases = [
-      { id: 'top', name: 'home', aliases: ['home', 'top', 'homepage'] },
-      { id: 'shop', name: 'shop', aliases: ['shop', 'products', 'collection', 'store'] },
-      { id: 'tools', name: 'digital tools', aliases: ['digital tools', 'tools', 'utilities'] },
-      { id: 'dynamic-qr', name: 'Dynamic QR', aliases: ['dynamic qr', 'image qr', 'qr codes'] },
-      { id: 'why-dira-pulse', name: 'Why DIRA PULSE', aliases: ['why dira pulse', 'about', 'about dira'] },
-    ];
-    const destination = query.replace(/^(?:please\s+)?(?:open|show|go to|navigate to|scroll to|take me to|visit)\s+/, '')
-      .replace(/^(?:the|section)\s+/, '')
-      .replace(/\s+(?:section|page)$/, '');
-    const section = sectionAliases.find(({ aliases }) => aliases.includes(destination));
-    if (section) {
-      const label = navigateToSection(section.id, section.name);
-      return label ? `Showing ${label}.` : `I couldn't find the ${section.name} section on this page.`;
-    }
-
-    const toolRequest = query.match(/^(?:please\s+)?(?:open|launch|start|use)\s+(?:the\s+)?(?:tool\s+)?(.+)$/);
-    if (toolRequest) {
-      const requestedTool = toolRequest[1].replace(/\s+(?:tool|please)$/, '');
-      const match = findTool(requestedTool);
-      if (!match) return `I couldn't find a tool named “${requestedTool}”. You can browse the Digital Tools section for available tools.`;
-      match.card.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' });
-      match.card.click();
-      return `Opening ${match.card.querySelector('strong')?.textContent || 'the tool'}. Any required access or payment step will appear in the existing tool flow.`;
-    }
-    return null;
+    return navigateToAppTarget(message);
   }
 
   function builtInAnswer(message) {
@@ -478,7 +665,7 @@
       if (answer === null) {
         try {
           answer = await requestBackendAnswer(message);
-        } catch {
+        } catch (error) {
           console.warn('Voice assistant endpoint unavailable; using built-in guidance:', error);
           setStatus('Assistant service unavailable. Using built-in guidance.', 'error');
         }

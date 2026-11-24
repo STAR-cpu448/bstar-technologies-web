@@ -1910,6 +1910,18 @@
         document.body.classList.remove('panel-open');
       }
     }));
+    window.DIRATools = Object.freeze({
+      openTool(toolId) {
+        if (!GROUPS.has(toolId)) throw new Error(`Unknown Digital Utilities tool: ${toolId}`);
+        return requestTool(toolId);
+      },
+      showCategory(category) {
+        if (category !== 'all' && !TOOL_GROUPS.some((group) => group.name === category)) {
+          throw new Error(`Unknown Digital Utilities category: ${category}`);
+        }
+        filterToolCategories(category);
+      },
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
