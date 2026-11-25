@@ -3,15 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#080b12">
+  <meta name="theme-color" content="#0B101B">
   <meta name="description" content="Shop carefully selected technology and explore practical digital tools, including the DIRA AI Image Generator.">
   <title>DIRA PULSE TECHNOLOGIES — Tech, made simple.</title>
+  <script>
+    (() => {
+      let theme = 'light';
+      try {
+        const savedTheme = localStorage.getItem('dira-theme');
+        if (savedTheme === 'dark' || savedTheme === 'light') theme = savedTheme;
+      } catch (error) {
+        console.warn('Could not read the saved DIRA theme preference:', error);
+      }
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <script src="/security-diagnostics.js?v=2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=3.4">
-  <link rel="stylesheet" href="voice-assistant.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=4.0">
+  <link rel="stylesheet" href="voice-assistant.css?v=17">
   <style>
     @keyframes dira-navigation-highlight {
       0% { outline-color: rgba(0, 198, 255, 0.95); outline-offset: 0; box-shadow: 0 0 0 0 rgba(0, 198, 255, 0.48); }
@@ -32,7 +44,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   <script src="supabase-config.js?v=3" defer></script>
   <script src="app.js?v=9" defer></script>
-  <script src="tools.js?v=18" defer></script>
+  <script src="tools.js?v=19" defer></script>
   <script src="voice-assistant.js?v=25" defer></script>
 </head>
 <body>
@@ -50,6 +62,13 @@
           <a href="#why-dira-pulse">Why DIRA PULSE</a>
         </div>
         <div class="nav-actions">
+          <button class="icon-button theme-toggle" id="theme-toggle" type="button" role="switch" aria-label="Dark theme" title="Switch to dark theme" aria-checked="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path class="theme-icon-moon" d="M20.2 15.1A8.6 8.6 0 0 1 8.9 3.8 8.7 8.7 0 1 0 20.2 15.1Z"/>
+              <circle class="theme-icon-sun" cx="12" cy="12" r="4"/>
+              <path class="theme-icon-sun" d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>
+            </svg>
+          </button>
           <button class="icon-button admin-trigger" id="open-admin" type="button" aria-label="Open admin dashboard" title="Admin dashboard">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.8 7.5 9.8 4.3-1 7.5-5.2 7.5-9.8V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg>
           </button>

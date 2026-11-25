@@ -2,6 +2,7 @@
   'use strict';
 
   const FEE = 10;
+  const THEME_STORAGE_KEY = 'dira-theme';
   const STORAGE_PHONE = 'bstar-tools-phone-v1';
   const CHECKLIST_KEY = 'bstar-tools-checklists-v1';
   const RENDER_TOOLS_API_BASE_URL = 'https://bstar-technologies-web-azkl.onrender.com';
@@ -1868,6 +1869,27 @@
     if (dialog.open) dialog.close();
   }
 
+  function initThemeToggle() {
+    const toggle = $('#theme-toggle');
+    const updateToggle = () => {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      toggle.setAttribute('title', isDark ? 'Switch to light theme' : 'Switch to dark theme');
+      toggle.setAttribute('aria-checked', String(isDark));
+    };
+
+    updateToggle();
+    toggle.addEventListener('click', () => {
+      const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = theme;
+      updateToggle();
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+      } catch (error) {
+        console.warn('Could not save the DIRA theme preference:', error);
+      }
+    });
+  }
+
   function syncToolPanelOpenState() {
     if ($('#tools-workspace').open || $('#tools-paywall').open) {
       document.body.classList.add('panel-open');
@@ -1878,6 +1900,7 @@
   }
 
   function init() {
+    initThemeToggle();
     renderCards();
     addDiraImageFlagshipCard();
     enhanceToolVisuals();

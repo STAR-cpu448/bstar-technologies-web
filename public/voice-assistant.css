@@ -712,6 +712,99 @@
   }
 }
 
+:root:not([data-theme="dark"]) .voice-assistant-widget {
+  --va-bg: #FFFFFF;
+  --va-panel: #FFFFFF;
+  --va-border: #E2DDD3;
+  --va-muted: #4B5563;
+  --va-text: #111827;
+  --va-accent: #557C00;
+  --va-blue: #285D75;
+}
+
+:root:not([data-theme="dark"]) .voice-assistant-panel {
+  border-color: #E2DDD3;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 24px 70px rgba(17,24,39,.24);
+}
+:root:not([data-theme="dark"]) .voice-assistant-header,
+:root:not([data-theme="dark"]) .voice-assistant-form,
+:root:not([data-theme="dark"]) .voice-assistant-audio-controls,
+:root:not([data-theme="dark"]) .voice-assistant-shortcuts,
+:root:not([data-theme="dark"]) .voice-assistant-image-studio { border-color: #E2DDD3; }
+:root:not([data-theme="dark"]) .voice-assistant-form { background: #F7F5F0; }
+:root:not([data-theme="dark"]) .voice-assistant-device-note,
+:root:not([data-theme="dark"]) .voice-assistant-shortcuts,
+:root:not([data-theme="dark"]) .voice-assistant-image-studio { color: #4B5563; }
+:root:not([data-theme="dark"]) .voice-assistant-device-note strong,
+:root:not([data-theme="dark"]) .voice-assistant-status[data-state="listening"],
+:root:not([data-theme="dark"]) .voice-assistant-image-status { color: #285D75; }
+:root:not([data-theme="dark"]) .voice-assistant-message {
+  border-color: #E2DDD3;
+  background: #F4F2ED;
+  color: #111827;
+}
+:root:not([data-theme="dark"]) .voice-assistant-message.is-user {
+  border-color: #DCE7B7;
+  background: #F1F7DE;
+}
+:root:not([data-theme="dark"]) .voice-assistant-form textarea,
+:root:not([data-theme="dark"]) .voice-assistant-image-prompt,
+:root:not([data-theme="dark"]) .voice-assistant-image-aspect,
+:root:not([data-theme="dark"]) .voice-assistant-image-input {
+  border-color: #CFC9BE;
+  background: #FFFFFF;
+  color: #111827;
+}
+:root:not([data-theme="dark"]) .voice-assistant-form textarea::placeholder,
+:root:not([data-theme="dark"]) .voice-assistant-image-prompt::placeholder,
+:root:not([data-theme="dark"]) .voice-assistant-image-input::placeholder { color: #69717D; }
+:root:not([data-theme="dark"]) .voice-assistant-button,
+:root:not([data-theme="dark"]) .voice-assistant-text-button,
+:root:not([data-theme="dark"]) .voice-assistant-icon-button {
+  border-color: #D5D0C6;
+  background: #FFFFFF;
+  color: #263041;
+}
+:root:not([data-theme="dark"]) .voice-assistant-send,
+:root:not([data-theme="dark"]) .voice-assistant-image-generate {
+  border-color: #B8D75A;
+  background: #EAF5C8;
+  color: #344A00;
+}
+:root:not([data-theme="dark"]) .voice-assistant-shortcuts summary,
+:root:not([data-theme="dark"]) .voice-assistant-image-studio summary,
+:root:not([data-theme="dark"]) .voice-assistant-shortcut-content strong,
+:root:not([data-theme="dark"]) .voice-assistant-image-label { color: #263041; }
+:root:not([data-theme="dark"]) .voice-assistant-shortcut-content code {
+  border-color: #E2DDD3;
+  color: #285D75;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model {
+  border-color: #E2DDD3;
+  background: #FFFFFF;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model.is-selected {
+  border-color: #A6C735;
+  background: #F3F8E6;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model strong { color: #111827; }
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate {
+  border-color: #E7C184;
+  background: #FFF8ED;
+}
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate > strong { color: #8A4B08; }
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate p { color: #4B5563; }
+:root:not([data-theme="dark"]) .voice-assistant-image-plan { color: #405D00; }
+:root:not([data-theme="dark"]) .voice-assistant-image-result img {
+  border-color: #E2DDD3;
+  background: #F7F5F0;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-download { color: #405D00; }
+:root:not([data-theme="dark"]) .voice-assistant-image-status[data-state="error"] { color: #9F2D22; }
+:root:not([data-theme="dark"]) .voice-assistant-image-status[data-state="notice"] { color: #6F4A00; }
+:root:not([data-theme="dark"]) .voice-assistant-image-status[data-state="success"] { color: #405D00; }
+
 .voice-assistant-widget {
   z-index: 2147483000;
   --va-orb-pink: #ff65cf;
