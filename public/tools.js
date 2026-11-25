@@ -4,6 +4,33 @@
   const FEE = 10;
   const STORAGE_PHONE = 'bstar-tools-phone-v1';
   const CHECKLIST_KEY = 'bstar-tools-checklists-v1';
+  const RENDER_TOOLS_API_BASE_URL = 'https://bstar-technologies-web-azkl.onrender.com';
+  const configuredToolsApiBaseUrl = window.DIRA_API_BASE_URL || window.BSTAR_CONFIG?.imageApiBaseUrl;
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const useSameOriginToolsApi = (isLocalHost && ['5000', '10000'].includes(window.location.port))
+    || window.location.hostname === 'bstar-technologies-web-azkl.onrender.com';
+
+  function resolveToolsApiBaseUrl(value) {
+    const fallback = useSameOriginToolsApi ? window.location.origin : RENDER_TOOLS_API_BASE_URL;
+    if (typeof value !== 'string' || !value.trim()) return fallback;
+    let url;
+    try {
+      url = new URL(value.trim(), window.location.origin);
+    } catch {
+      console.warn('[DIRA security diagnostics] Invalid tools API base URL; using the configured HTTPS backend.');
+      return fallback;
+    }
+    const isLoopbackTarget = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    const isAllowedHttp = url.protocol === 'http:'
+      && (url.origin === window.location.origin || (isLocalHost && isLoopbackTarget));
+    if (url.protocol !== 'https:' && !isAllowedHttp) {
+      console.warn('[DIRA security diagnostics] Refusing insecure tools API base URL; using the configured HTTPS backend.');
+      return fallback;
+    }
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+  }
+
+  const toolsApiBaseUrl = resolveToolsApiBaseUrl(configuredToolsApiBaseUrl);
   const STUDIO_CANVAS_PRESETS = [
     ['1200x900', 'Landscape · 1200 × 900'],
     ['1080x1080', 'Square post · 1080 × 1080'],
@@ -342,19 +369,30 @@
     return '';
   }
 
-  function isMissingColumn(error, column) {
-    return ['42703', 'PGRST204'].includes(error?.code)
-      && new RegExp(column, 'i').test(`${error.message || ''} ${error.details || ''}`);
+  async function requestToolSubscriptions({ method = 'GET', body, accessToken } = {}) {
+    const headers = {};
+    if (body) headers['Content-Type'] = 'application/json';
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const response = await fetch(`${toolsApiBaseUrl}/api/tools/subscriptions`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || `The subscription service returned HTTP ${response.status}.`);
+      error.code = result.code;
+      throw error;
+    }
+    return result;
   }
 
-  async function insertToolSubscription(client, subscription) {
-    let { error } = await client.from('tool_subscriptions').insert(subscription);
-    if (isMissingColumn(error, 'amount_kes')) {
-      const compatibleSubscription = { ...subscription };
-      delete compatibleSubscription.amount_kes;
-      ({ error } = await client.from('tool_subscriptions').insert(compatibleSubscription));
-    }
-    return error;
+  async function getAdminAccessToken(client) {
+    const { data, error } = await client.auth.getSession();
+    if (error) throw new Error(error.message);
+    if (data.session?.user?.app_metadata?.role !== 'admin') throw new Error('Administrator access required.');
+    if (!data.session.access_token) throw new Error('Sign in again to manage tool subscriptions.');
+    return data.session.access_token;
   }
 
   async function activeSubscription(phone, toolId) {
@@ -1724,35 +1762,27 @@
           openTool(pendingToolId);
           return;
         }
-        const client = await getClient();
-        const error = await insertToolSubscription(client, {
-          phone,
-          tool_id: pendingToolId,
-          mpesa_code: code,
-          amount_kes: PRICES.get(pendingToolId),
-          status: 'pending_approval',
+        await requestToolSubscriptions({
+          method: 'POST',
+          body: { phone, toolId: pendingToolId, mpesaCode: code },
         });
-        if (error && error.code !== '23505') throw new Error(error.message);
         localStorage.setItem(STORAGE_PHONE, phone);
-        setPaywallStatus(error
-          ? 'This code was already submitted. It will unlock after an administrator verifies the payment; try Verify / Unlock again later.'
-          : 'Payment submitted for review. The tool will unlock after an administrator verifies your KES 50 M-Pesa payment. You can return and select Verify / Unlock again.',
-        'success');
+        setPaywallStatus('Payment submitted for review. The tool will unlock after an administrator verifies your KES 50 M-Pesa payment. You can return and select Verify / Unlock again.', 'success');
         return;
       }
-      const client = await getClient();
-      const error = await insertToolSubscription(client, {
-        phone,
-        tool_id: pendingToolId,
-        mpesa_code: code,
-        amount_kes: PRICES.get(pendingToolId) || FEE,
-        status: 'pending_approval',
+      await requestToolSubscriptions({
+        method: 'POST',
+        body: { phone, toolId: pendingToolId, mpesaCode: code },
       });
-      if (error) throw new Error(error.message);
       localStorage.setItem(STORAGE_PHONE, phone);
       setPaywallStatus('Payment submitted for review. Your tool will unlock after an administrator verifies the M-Pesa transaction.', 'success');
       if (pendingToolId !== 'business-email-transformer') form.elements.mpesaCode.value = '';
     } catch (error) {
+      if (pendingToolId === 'business-email-transformer' && error.code === 'duplicate_mpesa_code') {
+        localStorage.setItem(STORAGE_PHONE, phone);
+        setPaywallStatus('This code was already submitted. It will unlock after an administrator verifies the payment; try Verify / Unlock again later.', 'success');
+        return;
+      }
       console.error('Could not submit tool payment:', error);
       setPaywallStatus(`Could not submit payment: ${error.message}`, 'error');
     } finally {
@@ -1765,22 +1795,8 @@
     const count = $('#tool-subscriptions-count');
     list.replaceChildren(el('p', 'empty-state', 'Loading payment requests…'));
     const client = await getClient();
-    const { data: sessionData, error: sessionError } = await client.auth.getSession();
-    if (sessionError) throw new Error(sessionError.message);
-    if (sessionData.session?.user?.app_metadata?.role !== 'admin') throw new Error('Administrator access required.');
-    let fields = ['id', 'phone', 'tool_id', 'mpesa_code', 'amount_kes', 'exported_at', 'expires_at', 'status', 'created_at'];
-    let data;
-    let error;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      ({ data, error } = await client.from('tool_subscriptions')
-        .select(fields.join(','))
-        .order('created_at', { ascending: false }));
-      if (!error) break;
-      const missingField = ['amount_kes', 'exported_at', 'expires_at'].find((field) => fields.includes(field) && isMissingColumn(error, field));
-      if (!missingField) break;
-      fields = fields.filter((field) => field !== missingField);
-    }
-    if (error) throw new Error(`Unable to load tool payments: ${error.message}`);
+    const accessToken = await getAdminAccessToken(client);
+    const { subscriptions: data } = await requestToolSubscriptions({ accessToken });
     list.replaceChildren();
     count.textContent = `(${data.length})`;
     if (!data.length) list.append(el('p', 'empty-state', 'No tool payments have been submitted.'));
@@ -1826,11 +1842,17 @@
     enable.disabled = true;
     try {
       const client = await getClient();
-      const { data: sessionData, error: sessionError } = await client.auth.getSession();
-      if (sessionError) throw new Error(sessionError.message);
-      if (sessionData.session?.user?.app_metadata?.role !== 'admin') throw new Error('Administrator access required.');
-      const { error } = await client.from('tool_subscriptions').update({ status: 'active' }).eq('id', enable.dataset.subscriptionId);
-      if (error) throw new Error(error.message);
+      const accessToken = await getAdminAccessToken(client);
+      const response = await fetch(`${toolsApiBaseUrl}/api/tools/subscriptions/activate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id: enable.dataset.subscriptionId }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `The subscription service returned HTTP ${response.status}.`);
       await renderSubscriptions();
     } catch (error) {
       console.error('Could not activate tool subscription:', error);

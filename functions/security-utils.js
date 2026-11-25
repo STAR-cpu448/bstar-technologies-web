@@ -68,6 +68,9 @@ const RATE_LIMIT_POLICIES = Object.freeze({
   'POST /api/image/generate': { limit: 5, windowMs: 60_000 },
   'POST /api/image/pro/access': { limit: 20, windowMs: 60_000 },
   'POST /api/image/pro/payment': { limit: 5, windowMs: 60_000 },
+  'GET /api/tools/subscriptions': { limit: 30, windowMs: 60_000 },
+  'POST /api/tools/subscriptions': { limit: 10, windowMs: 60_000 },
+  'POST /api/tools/subscriptions/activate': { limit: 20, windowMs: 60_000 },
   'POST /api/qr/create': { limit: 5, windowMs: 10 * 60_000 },
 });
 
@@ -113,7 +116,7 @@ function createRateLimiter({ trustProxy = false, maxEntries = 50_000 } = {}) {
   }
 
   return function enforceRateLimit(request, response, scope, policy) {
-    if (!policy || request.method === 'OPTIONS') return true;
+    if (!policy) return true;
 
     const now = Date.now();
     requestsSinceCleanup += 1;

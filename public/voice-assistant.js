@@ -1038,7 +1038,11 @@
         ? data.error
         : `The DIRA image backend returned HTTP ${response.status} without an error message.`;
       const details = typeof data.details === 'string' && data.details ? `\nDetails: ${data.details}` : '';
-      const requestError = new Error(`${message}${details}`);
+      const retryAfter = data.code === 'rate_limited' ? Number(response.headers.get('Retry-After')) : 0;
+      const retryHint = Number.isFinite(retryAfter) && retryAfter > 0
+        ? ` Retry in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`
+        : '';
+      const requestError = new Error(`${message}${retryHint}${details}`);
       requestError.status = response.status;
       requestError.code = data.code || 'image_backend_error';
       throw requestError;

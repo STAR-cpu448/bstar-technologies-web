@@ -7,6 +7,7 @@ const {
   SECURITY_HEADERS,
   createAllowedOrigins,
   createRateLimiter,
+  getClientIp,
   getRateLimitPolicy,
 } = require('./functions/security-utils');
 
@@ -43,8 +44,39 @@ const diraImageApiPaths = new Set([
   '/api/image/pro/access',
   '/api/image/pro/payment',
 ]);
+const toolSubscriptionApiPaths = new Set([
+  '/api/tools/subscriptions',
+  '/api/tools/subscriptions/activate',
+]);
 const DIRA_IMAGE_PRO_TOOL_ID = 'dira-image-pro';
 const DIRA_IMAGE_PRO_PRICE_KES = 700;
+const TOOL_SUBSCRIPTION_PRICE_KES = Object.freeze({
+  'compress-pdf': 10,
+  'pdf-to-jpg': 10,
+  'image-to-pdf': 10,
+  'pdf-merge': 10,
+  'pdf-split': 10,
+  'passport-photo': 10,
+  'image-compress': 10,
+  'image-resize': 10,
+  'format-converter': 10,
+  'image-crop': 10,
+  'whatsapp-link': 10,
+  'qr-generator': 10,
+  'age-calculator': 10,
+  'file-size': 10,
+  'letter-maker': 10,
+  'vat-calculator': 10,
+  'percentage-calculator': 10,
+  'invoice-maker': 10,
+  'mpesa-sheet': 10,
+  'cv-checklist': 10,
+  'business-checklist': 10,
+  'business-email-transformer': 50,
+  'graphic-design-studio': 900,
+  '3d-modeler-maker': 50,
+  '3d-modeler-pro': 300,
+});
 const DIRA_IMAGE_TIER_CONFIG = {
   base: {
     model: process.env.DIRA_IMAGE_BASE_MODEL || 'gpt-image-2.5-flare',
@@ -322,6 +354,234 @@ async function readDiraImagePayload(request, response) {
   }
 }
 
+async function authenticateToolSubscriptionAdmin(request, response) {
+  const authorization = request.headers.authorization || '';
+  const tokenMatch = authorization.match(/^Bearer\s+([^\s]+)$/i);
+  if (!tokenMatch) {
+    sendJson(response, 401, { error: 'Sign in as an administrator to manage tool subscriptions.' });
+    return false;
+  }
+  if (!supabaseUrl || !supabaseKey) {
+    sendJson(response, 503, { error: 'Administrator authentication is not configured on the backend.' });
+    return false;
+  }
+  try {
+    const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/auth/v1/user`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${tokenMatch[1]}`,
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!result.ok) {
+      sendJson(response, result.status === 401 ? 401 : 503, {
+        error: result.status === 401
+          ? 'Your administrator session is invalid or expired. Sign in again.'
+          : 'Could not verify the administrator session.',
+      });
+      return false;
+    }
+    const user = await result.json();
+    if (user.app_metadata?.role !== 'admin') {
+      sendJson(response, 403, { error: 'Administrator access required.' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Tool subscription administrator check failed:', error.message);
+    sendJson(response, 503, { error: 'Could not verify the administrator session.' });
+    return false;
+  }
+}
+
+function getToolSubscriptionServiceKey(response) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    const missing = [
+      !supabaseUrl ? 'SUPABASE_URL' : '',
+      !serviceRoleKey ? 'SUPABASE_SERVICE_ROLE_KEY' : '',
+    ].filter(Boolean);
+    sendJson(response, 503, {
+      error: 'Tool subscription management is not configured on the backend.',
+      details: `Set ${missing.join(' and ')} on the backend.`,
+    });
+    return '';
+  }
+  return serviceRoleKey;
+}
+
+async function readToolSubscriptionPayload(request, response) {
+  try {
+    const payload = await readJson(request, 4000);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      sendJson(response, 400, { error: 'Request body must be a JSON object.' });
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return null;
+  }
+}
+
+async function handleToolSubscriptionPayment(request, response) {
+  const payload = await readToolSubscriptionPayload(request, response);
+  if (!payload) return;
+  const phone = normalizeKenyanPayerPhone(payload.phone);
+  const toolId = payload.toolId;
+  const mpesaCode = typeof payload.mpesaCode === 'string' ? payload.mpesaCode.trim().toUpperCase() : '';
+  const amount = TOOL_SUBSCRIPTION_PRICE_KES[toolId];
+  if (!phone || phone === '254794940193') {
+    sendJson(response, 400, { error: 'Enter the Kenyan payer phone number used for your payment.' });
+    return;
+  }
+  if (typeof toolId !== 'string' || !Object.prototype.hasOwnProperty.call(TOOL_SUBSCRIPTION_PRICE_KES, toolId)) {
+    sendJson(response, 400, { error: 'Choose a supported paid tool.' });
+    return;
+  }
+  if (!/^[A-Z0-9]{8,20}$/.test(mpesaCode)) {
+    sendJson(response, 400, { error: 'Enter a valid M-Pesa transaction code.' });
+    return;
+  }
+  const serviceRoleKey = getToolSubscriptionServiceKey(response);
+  if (!serviceRoleKey) return;
+
+  const endpoint = `${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions`;
+  const subscription = {
+    phone,
+    tool_id: toolId,
+    mpesa_code: mpesaCode,
+    amount_kes: amount,
+    status: 'pending_approval',
+  };
+  try {
+    let result = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(subscription),
+      signal: AbortSignal.timeout(10000),
+    });
+    let detail = result.ok ? '' : await result.text();
+    if (!result.ok && /amount_kes/i.test(detail) && /column|schema cache/i.test(detail)) {
+      const compatibleSubscription = { ...subscription };
+      delete compatibleSubscription.amount_kes;
+      result = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(compatibleSubscription),
+        signal: AbortSignal.timeout(10000),
+      });
+      detail = result.ok ? '' : await result.text();
+    }
+    if (!result.ok) {
+      const duplicate = result.status === 409 || /duplicate key|unique constraint/i.test(detail);
+      sendJson(response, duplicate ? 409 : 503, {
+        error: duplicate
+          ? 'This M-Pesa transaction code has already been submitted.'
+          : 'Could not record the payment. Please try again later.',
+        code: duplicate ? 'duplicate_mpesa_code' : 'supabase_payment_insert_failed',
+      });
+      if (!duplicate) console.error('Tool payment could not be recorded:', detail);
+      return;
+    }
+    sendJson(response, 202, { submitted: true, amount_kes: amount });
+  } catch (error) {
+    console.error('Could not submit tool payment:', error.message);
+    sendJson(response, 503, { error: 'Could not submit this payment right now. Please try again shortly.' });
+  }
+}
+
+async function handleToolSubscriptionList(request, response) {
+  if (!(await authenticateToolSubscriptionAdmin(request, response))) return;
+  const serviceRoleKey = getToolSubscriptionServiceKey(response);
+  if (!serviceRoleKey) return;
+  const fields = ['id', 'phone', 'tool_id', 'mpesa_code', 'amount_kes', 'exported_at', 'expires_at', 'status', 'created_at'];
+  const optionalFields = ['amount_kes', 'exported_at', 'expires_at'];
+  try {
+    while (true) {
+      const query = new URLSearchParams({
+        select: fields.join(','),
+        order: 'created_at.desc',
+      });
+      const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions?${query}`, {
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (result.ok) {
+        sendJson(response, 200, { subscriptions: await result.json() });
+        return;
+      }
+      const detail = await result.text();
+      const missingField = optionalFields.find((field) => fields.includes(field)
+        && new RegExp(field, 'i').test(detail)
+        && /column|schema cache/i.test(detail));
+      if (missingField) {
+        fields.splice(fields.indexOf(missingField), 1);
+        continue;
+      }
+      console.error('Could not load tool subscriptions:', detail);
+      sendJson(response, 503, { error: 'Unable to load tool payments from Supabase.' });
+      return;
+    }
+  } catch (error) {
+    console.error('Could not load tool subscriptions:', error.message);
+    sendJson(response, 503, { error: 'Unable to load tool payments from Supabase.' });
+  }
+}
+
+async function handleToolSubscriptionActivation(request, response) {
+  if (!(await authenticateToolSubscriptionAdmin(request, response))) return;
+  const payload = await readToolSubscriptionPayload(request, response);
+  if (!payload) return;
+  if (typeof payload.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.id)) {
+    sendJson(response, 400, { error: 'Choose a valid tool payment to activate.' });
+    return;
+  }
+  const serviceRoleKey = getToolSubscriptionServiceKey(response);
+  if (!serviceRoleKey) return;
+  try {
+    const query = new URLSearchParams({ id: `eq.${payload.id}` });
+    const result = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/rest/v1/tool_subscriptions?${query}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ status: 'active' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!result.ok) {
+      console.error('Could not activate tool subscription:', await result.text());
+      sendJson(response, 503, { error: 'Could not activate this tool payment.' });
+      return;
+    }
+    const updated = await result.json();
+    if (!updated.length) {
+      sendJson(response, 404, { error: 'The selected tool payment was not found.' });
+      return;
+    }
+    sendJson(response, 200, { activated: true });
+  } catch (error) {
+    console.error('Could not activate tool subscription:', error.message);
+    sendJson(response, 503, { error: 'Could not activate this tool payment.' });
+  }
+}
+
 async function handleDiraImageProAccess(request, response) {
   const payload = await readDiraImagePayload(request, response);
   if (!payload) return;
@@ -464,10 +724,7 @@ async function handleDiraImageGeneration(request, response) {
     return;
   }
 
-  const forwardedFor = request.headers['x-forwarded-for'];
-  const clientIp = typeof forwardedFor === 'string'
-    ? forwardedFor.split(',')[0].trim()
-    : request.socket.remoteAddress || 'unknown';
+  const clientIp = getClientIp(request, trustProxy);
   const usageKey = modelTier === 'pro'
     ? phone
     : crypto.createHash('sha256').update(clientIp).digest('hex');
@@ -961,8 +1218,13 @@ const server = http.createServer((request, response) => {
   for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
     response.setHeader(header, value);
   }
+  const requestPath = request.url.split('?', 1)[0];
+  const rateLimitPolicy = getRateLimitPolicy(request.method, requestPath);
+  if (rateLimitPolicy && !enforceRateLimit(request, response, `${request.method} ${requestPath}`, rateLimitPolicy)) {
+    return;
+  }
   console.log(`[ROUTE HIT] ${request.method} ${request.url}`);
-  if (diraImageApiPaths.has(request.url) && ['OPTIONS', 'POST'].includes(request.method)) {
+  if (diraImageApiPaths.has(requestPath) && ['OPTIONS', 'POST'].includes(request.method)) {
     const origin = request.headers.origin;
     if (origin && !diraImageAllowedOrigins.has(origin)) {
       sendJson(response, 403, { error: 'This website is not allowed to submit DIRA image requests.' });
@@ -981,7 +1243,7 @@ const server = http.createServer((request, response) => {
       return;
     }
   }
-  if (request.url === '/api/qr/create' && ['OPTIONS', 'POST'].includes(request.method)) {
+  if (requestPath === '/api/qr/create' && ['OPTIONS', 'POST'].includes(request.method)) {
     const origin = request.headers.origin;
     if (origin && !qrAllowedOrigins.has(origin)) {
       sendJson(response, 403, { error: 'This website is not allowed to submit QR requests.' });
@@ -1000,36 +1262,62 @@ const server = http.createServer((request, response) => {
       return;
     }
   }
-  const requestPath = request.url.split('?', 1)[0];
-  const rateLimitPolicy = getRateLimitPolicy(request.method, requestPath);
-  if (rateLimitPolicy && !enforceRateLimit(request, response, `${request.method} ${requestPath}`, rateLimitPolicy)) {
-    return;
+  if (toolSubscriptionApiPaths.has(requestPath) && ['OPTIONS', 'GET', 'POST'].includes(request.method)) {
+    const origin = request.headers.origin;
+    if (origin && !diraImageAllowedOrigins.has(origin)) {
+      sendJson(response, 403, { error: 'This website is not allowed to manage tool subscriptions.' });
+      return;
+    }
+    if (origin) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+      response.setHeader('Vary', 'Origin');
+    }
+    if (request.method === 'OPTIONS') {
+      response.setHeader('Access-Control-Allow-Methods', requestPath.endsWith('/activate') ? 'POST, OPTIONS' : 'GET, POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      response.setHeader('Access-Control-Max-Age', '600');
+      response.writeHead(204);
+      response.end();
+      return;
+    }
   }
-  if (request.method === 'POST' && request.url === '/api/email/transform') {
+  if (request.method === 'POST' && requestPath === '/api/email/transform') {
     void handleEmailTransform(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/modeler/payment') {
+  if (request.method === 'POST' && requestPath === '/api/modeler/payment') {
     void handleModelerPayment(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/modeler/export') {
+  if (request.method === 'POST' && requestPath === '/api/modeler/export') {
     void handleModelerExport(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/image/generate') {
+  if (request.method === 'POST' && requestPath === '/api/image/generate') {
     void handleDiraImageGeneration(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/image/pro/access') {
+  if (request.method === 'POST' && requestPath === '/api/image/pro/access') {
     void handleDiraImageProAccess(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/image/pro/payment') {
+  if (request.method === 'POST' && requestPath === '/api/image/pro/payment') {
     void handleDiraImageProPayment(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/qr/create') {
+  if (request.method === 'POST' && requestPath === '/api/tools/subscriptions') {
+    void handleToolSubscriptionPayment(request, response);
+    return;
+  }
+  if (request.method === 'GET' && requestPath === '/api/tools/subscriptions') {
+    void handleToolSubscriptionList(request, response);
+    return;
+  }
+  if (request.method === 'POST' && requestPath === '/api/tools/subscriptions/activate') {
+    void handleToolSubscriptionActivation(request, response);
+    return;
+  }
+  if (request.method === 'POST' && requestPath === '/api/qr/create') {
     void handleCreateImageQr(request, response);
     return;
   }
