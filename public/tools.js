@@ -270,8 +270,17 @@
       el('small', '', DESCRIPTIONS.get('dira-image-generator')),
     );
     const action = el('span', 'graphic-studio-flagship-action');
+    const pricing = el('span', 'graphic-studio-flagship-price');
+    const basePlan = el('span', 'graphic-studio-tier graphic-studio-tier--base');
+    basePlan.append(el('strong', '', 'Base'), el('small', '', '5 images per day per IP'));
+    const proPlan = el('span', 'graphic-studio-tier graphic-studio-tier--pro');
+    proPlan.append(
+      el('strong', '', 'Pro · KES 700/month'),
+      el('small', '', '60 images per 30 days per approved phone'),
+    );
+    pricing.append(basePlan, proPlan);
     action.append(
-      el('span', 'graphic-studio-flagship-price', 'Base · 5/day | Pro · KES 700/month'),
+      pricing,
       el('span', 'graphic-studio-flagship-cta', 'Generate an image ↗'),
     );
     card.append(copy, action, visualWrap);
@@ -1875,6 +1884,7 @@
       const isDark = document.documentElement.dataset.theme === 'dark';
       toggle.setAttribute('title', isDark ? 'Switch to light theme' : 'Switch to dark theme');
       toggle.setAttribute('aria-checked', String(isDark));
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#0B101B' : '#F6F4EF');
     };
 
     updateToggle();

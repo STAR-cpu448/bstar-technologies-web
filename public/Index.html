@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0B101B">
+  <meta name="theme-color" content="#F6F4EF">
   <meta name="description" content="Shop carefully selected technology and explore practical digital tools, including the DIRA AI Image Generator.">
   <title>DIRA PULSE TECHNOLOGIES — Tech, made simple.</title>
   <script>
@@ -16,14 +16,16 @@
         console.warn('Could not read the saved DIRA theme preference:', error);
       }
       document.documentElement.dataset.theme = theme;
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+      if (themeColor) themeColor.content = theme === 'dark' ? '#0B101B' : '#F6F4EF';
     })();
   </script>
   <script src="/security-diagnostics.js?v=2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.0">
-  <link rel="stylesheet" href="voice-assistant.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=6.0">
+  <link rel="stylesheet" href="voice-assistant.css?v=19">
   <style>
     @keyframes dira-navigation-highlight {
       0% { outline-color: rgba(0, 198, 255, 0.95); outline-offset: 0; box-shadow: 0 0 0 0 rgba(0, 198, 255, 0.48); }
@@ -44,7 +46,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   <script src="supabase-config.js?v=3" defer></script>
   <script src="app.js?v=9" defer></script>
-  <script src="tools.js?v=19" defer></script>
+  <script src="tools.js?v=21" defer></script>
   <script src="voice-assistant.js?v=25" defer></script>
 </head>
 <body>

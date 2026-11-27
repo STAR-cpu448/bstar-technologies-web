@@ -1151,6 +1151,139 @@
   }
 }
 
+:root:not([data-theme="dark"]) .voice-assistant-panel {
+  border-color: rgba(17,24,39,.1);
+  background: #FFFFFF;
+  color: #0F172A;
+  box-shadow: 0 24px 64px -20px rgba(15,23,42,.32);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root:not([data-theme="dark"]) .voice-assistant-header,
+:root:not([data-theme="dark"]) .voice-assistant-shortcuts,
+:root:not([data-theme="dark"]) .voice-assistant-image-studio { border-color: rgba(17,24,39,.08); }
+:root:not([data-theme="dark"]) .voice-assistant-header {
+  border-bottom-color: rgba(17,24,39,.08);
+  background: #F6F4EF;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root:not([data-theme="dark"]) .voice-assistant-header::after {
+  background: linear-gradient(90deg,transparent,rgba(180,83,9,.32),transparent);
+  box-shadow: none;
+}
+:root:not([data-theme="dark"]) .voice-assistant-brand strong { color: #0F172A; }
+:root:not([data-theme="dark"]) .voice-assistant-brand small,
+:root:not([data-theme="dark"]) .voice-assistant-device-note,
+:root:not([data-theme="dark"]) .voice-assistant-mic-note,
+:root:not([data-theme="dark"]) .voice-assistant-image-hint,
+:root:not([data-theme="dark"]) .voice-assistant-image-model small { color: #4B5563; }
+:root:not([data-theme="dark"]) .voice-assistant-form {
+  border-color: rgba(17,24,39,.08);
+  background: #F6F4EF;
+}
+:root:not([data-theme="dark"]) .voice-assistant-messages {
+  border-color: rgba(17,24,39,.08);
+  background: #EFECE4;
+}
+:root:not([data-theme="dark"]) .voice-assistant-form textarea,
+:root:not([data-theme="dark"]) .voice-assistant-image-prompt,
+:root:not([data-theme="dark"]) .voice-assistant-image-aspect,
+:root:not([data-theme="dark"]) .voice-assistant-image-input {
+  border-color: rgba(17,24,39,.14);
+  background: #FFFFFF;
+  color: #0F172A;
+  line-height: 1.6;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-prompt:focus-visible {
+  border-color: #B45309;
+  outline: 3px solid rgba(180,83,9,.2);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px rgba(180,83,9,.12);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-prompt::placeholder,
+:root:not([data-theme="dark"]) .voice-assistant-image-input::placeholder,
+:root:not([data-theme="dark"]) .voice-assistant-form textarea::placeholder { color: #697386; }
+:root:not([data-theme="dark"]) .voice-assistant-image-model {
+  padding: 12px;
+  border-color: rgba(17,24,39,.1);
+  border-radius: 12px;
+  background: #FFFFFF;
+  box-shadow: 0 12px 32px -16px rgba(15,23,42,.12);
+  transition: border-color 250ms cubic-bezier(.22,1,.36,1),background 250ms cubic-bezier(.22,1,.36,1),box-shadow 250ms cubic-bezier(.22,1,.36,1);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model.is-selected {
+  border-color: #0F172A;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 1px #0F172A,0 12px 32px -16px rgba(15,23,42,.16);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model:has(input[value="pro"]) {
+  border-color: rgba(180,83,9,.2);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model.is-selected:has(input[value="pro"]) {
+  border-color: #B45309;
+  background: #FFF7ED;
+  box-shadow: 0 0 0 1px #B45309,0 12px 32px -16px rgba(15,23,42,.16);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-model strong { color: #0F172A; }
+:root:not([data-theme="dark"]) .voice-assistant-image-model input {
+  accent-color: #B45309;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-plan {
+  color: #526800;
+  font-variant-numeric: tabular-nums;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-status,
+:root:not([data-theme="dark"]) .voice-assistant-image-model strong {
+  font-variant-numeric: tabular-nums;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-label { color: #334155; }
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate {
+  border-color: rgba(180,83,9,.18);
+  background: #FFF7ED;
+}
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate > strong { color: #9A4A0A; }
+:root:not([data-theme="dark"]) .voice-assistant-pro-gate p { color: #4B5563; line-height: 1.6; }
+:root:not([data-theme="dark"]) .voice-assistant-image-result {
+  padding: 14px;
+  border: 1px solid rgba(17,24,39,.08);
+  border-radius: 14px;
+  background: #F6F4EF;
+  box-shadow: 0 12px 32px -12px rgba(15,23,42,.08);
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-result img {
+  border-color: rgba(17,24,39,.1);
+  border-radius: 10px;
+  background: #FFFFFF;
+}
+:root:not([data-theme="dark"]) .voice-assistant-image-download {
+  padding-inline: 16px;
+  border-color: #0F172A;
+  background: #0F172A;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+}
+:root:not([data-theme="dark"]) .voice-assistant-shortcuts summary,
+:root:not([data-theme="dark"]) .voice-assistant-image-studio summary { color: #334155; }
+:root:not([data-theme="dark"]) .voice-assistant-launcher {
+  border-color: rgba(255,255,255,.22);
+  box-shadow: 0 18px 42px -16px rgba(15,23,42,.5),0 0 22px rgba(84,139,255,.18);
+}
+
+@media (max-width: 600px) {
+  :root:not([data-theme="dark"]) .voice-assistant-panel {
+    width: calc(100vw - 20px);
+    padding: 12px;
+  }
+  :root:not([data-theme="dark"]) .voice-assistant-image-models {
+    grid-template-columns: minmax(0,1fr);
+  }
+  :root:not([data-theme="dark"]) .voice-assistant-launcher {
+    right: 12px;
+    bottom: max(12px,env(safe-area-inset-bottom));
+  }
+}
+
 .voice-assistant-widget.is-open .voice-assistant-backdrop {
   z-index: 9998;
   background: rgba(4, 7, 13, 0.82);
